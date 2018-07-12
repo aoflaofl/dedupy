@@ -1,4 +1,6 @@
 """
+Identify duplicate files.
+
 Adapted from a sample script by Randall Hettinger.
 """
 
@@ -9,7 +11,9 @@ from pprint import pprint
 
 def group_files_by_size(start_dir=".", ignore_zero_len=True):
     """
-    Create a dict of files mapped to size.  By default ignore zero length files.
+    Create a dict of files mapped to size.
+
+    By default ignore zero length files.
     """
     size_filenames_dict = {}  # content signature -> list of matching filenames
 
@@ -26,33 +30,38 @@ def group_files_by_size(start_dir=".", ignore_zero_len=True):
             except (PermissionError, FileNotFoundError):
                 pass
 
-    return size_filenames_dict
+    return remove_non_duplicates(size_filenames_dict)
 
 
 def hash_list_of_files(list_of_files):
-    """
-    Take a list of files and group them by a hash function.
-    """
+    """Take a list of files and group them by a hash function."""
     hash_files = {}
     for filename in list_of_files:
         try:
-            d = open(filename, "rb").read()
-        except:
+            data = open(filename, "rb").read()
+        except (PermissionError, FileNotFoundError):
             continue
 
-        h = hashlib.sha1(d).hexdigest()
+        hsh = hashlib.sha1(data).hexdigest()
         # pprint((h, filename))
-        hash_files.setdefault(h, []).append(filename)
+        hash_files.setdefault(hsh, []).append(filename)
 
     return hash_files
 
 
-dic = group_files_by_size("/")
-for size, file_list in dic.items():
-    if len(file_list) > 1:
-        # pprint(size)
-        # pprint(file_list)
-        newdic = hash_list_of_files(file_list)
-        pprint({key: value for key, value in newdic.items() if len(value) > 1})
+def remove_non_duplicates(dic):
+    """
+    Create a new dict without entries that don't have duplicates.
 
-# pprint(hashmap)
+    Takes a dict with the key shared by
+    all files in the list.
+    """
+    new_dic = {}
+    for size, file_list in dic.items():
+        if len(file_list) > 1:
+            new_dic[size] = file_list
+    return new_dic
+
+
+DIC = group_files_by_size(".")
+pprint(DIC)
