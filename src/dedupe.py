@@ -63,5 +63,6 @@ def remove_non_duplicates(dic):
     return new_dic
 
 
-DIC = group_files_by_size(".")
-pprint(DIC)
+if __name__ == "__main__":
+    _DIC = group_files_by_size(".")
+    pprint(_DIC)
