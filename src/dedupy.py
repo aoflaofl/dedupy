@@ -56,13 +56,19 @@ def remove_non_duplicates(dic):
     Takes a dict with the key shared by
     all files in the list.
     """
-    new_dic = {}
-    for size, file_list in dic.items():
-        if len(file_list) > 1:
-            new_dic[size] = file_list
-    return new_dic
+    return {key: value for (key, value) in dic.items() if len(value) > 1}
+
+
+def group_files_by_hash_function(dic):
+    """Group files in each list by hash value, discarding non-duplicates."""
+    out_dict = {}
+    for file_list in dic.values():
+        hash_dict = hash_list_of_files(file_list)
+        some_other_dict = remove_non_duplicates(hash_dict)
+        out_dict.update(some_other_dict)
+    return out_dict
 
 
 if __name__ == "__main__":
     _DIC = group_files_by_size(".")
-    pprint(_DIC)
+    pprint(group_files_by_hash_function(_DIC))
