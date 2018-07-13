@@ -8,11 +8,18 @@ import argparse
 import hashlib
 import os
 from pprint import pprint
+from collections import Counter
+
+c = Counter()
 
 
 def add_file_to_size_map(fullname, size_filenames_dict, ignore_zero_len=True):
     """Map a single file."""
     try:
+        file_ino = os.stat(fullname).st_ino
+        c[file_ino] += 1
+        if c[file_ino] > 1:
+            return
         file_size = os.stat(fullname).st_size
 
         if ignore_zero_len is True and file_size == 0:
@@ -40,7 +47,8 @@ def process_command_line_items(cli_items, ignore_zero_len=True):
     """Handle command line items."""
     size_filename_dict = {}
     for thing in cli_items:
-        # TODO: Make work with symbolic links
+        # TODO: Make work with symbolic links.  Turn links into real paths and make
+        # sure they only get scanned once.
         if os.path.exists(thing):
             if os.path.isdir(thing):
                 group_files_by_size(thing, size_filename_dict, ignore_zero_len)
