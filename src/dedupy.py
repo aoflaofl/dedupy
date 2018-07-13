@@ -4,9 +4,23 @@ Identify duplicate files.
 Adapted from a sample script by Randall Hettinger.
 """
 
+import argparse
 import hashlib
 import os
 from pprint import pprint
+
+
+def file_size_map(fullname, size_filenames_dict, ignore_zero_len=True):
+    try:
+        file_size = os.stat(fullname).st_size
+
+        if ignore_zero_len is True and file_size == 0:
+            return
+
+        size_filenames_dict.setdefault(file_size, []).append(fullname)
+    except (PermissionError, FileNotFoundError):
+        # TODO: Optionally report error
+        pass
 
 
 def group_files_by_size(start_dir=".", ignore_zero_len=True):
@@ -20,15 +34,16 @@ def group_files_by_size(start_dir=".", ignore_zero_len=True):
     for path, _, files in os.walk(start_dir):
         for filename in files:
             fullname = os.path.join(path, filename)
-            try:
-                file_size = os.stat(fullname).st_size
-
-                if ignore_zero_len is True and file_size == 0:
-                    continue
-
-                size_filenames_dict.setdefault(file_size, []).append(fullname)
-            except (PermissionError, FileNotFoundError):
-                pass
+            file_size_map(fullname, size_filenames_dict, ignore_zero_len)
+            # try:
+            #     file_size = os.stat(fullname).st_size
+            #
+            #     if ignore_zero_len is True and file_size == 0:
+            #         continue
+            #
+            #     size_filenames_dict.setdefault(file_size, []).append(fullname)
+            # except (PermissionError, FileNotFoundError):
+            #     pass
 
     return remove_non_duplicates(size_filenames_dict)
 
@@ -82,9 +97,23 @@ def print_grouped_files(dic):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("bar", nargs="+")
+    args = parser.parse_args()
+    pprint(args.bar)
+
+    for thing in args.bar:
+        if os.path.exists(thing):
+            if os.path.isdir(thing):
+                pprint(thing + " Directory")
+            else:
+                pprint(thing + " File")
+
     _DIC = group_files_by_size("/Users/gejohann/Dropbox/Gooble")
     print_grouped_files(
         group_files_by_hash_function(
             _DIC, ["md5", "sha1", "sha224", "sha256", "sha384", "sha512"]
         )
     )
+
+# TODO: Make work with symbolic links
