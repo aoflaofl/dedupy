@@ -10,7 +10,8 @@ import os
 from pprint import pprint
 
 
-def file_size_map(fullname, size_filenames_dict, ignore_zero_len=True):
+def add_file_to_size_map(fullname, size_filenames_dict, ignore_zero_len=True):
+    """Map a single file."""
     try:
         file_size = os.stat(fullname).st_size
 
@@ -23,29 +24,29 @@ def file_size_map(fullname, size_filenames_dict, ignore_zero_len=True):
         pass
 
 
-def group_files_by_size(start_dir=".", ignore_zero_len=True):
+def group_files_by_size(start_dir, size_filenames_dict, ignore_zero_len=True):
     """
     Create a dict of files mapped to size.
 
     By default ignore zero length files.
     """
-    size_filenames_dict = {}  # content signature -> list of matching filenames
-
     for path, _, files in os.walk(start_dir):
         for filename in files:
             fullname = os.path.join(path, filename)
-            file_size_map(fullname, size_filenames_dict, ignore_zero_len)
-            # try:
-            #     file_size = os.stat(fullname).st_size
-            #
-            #     if ignore_zero_len is True and file_size == 0:
-            #         continue
-            #
-            #     size_filenames_dict.setdefault(file_size, []).append(fullname)
-            # except (PermissionError, FileNotFoundError):
-            #     pass
+            add_file_to_size_map(fullname, size_filenames_dict, ignore_zero_len)
 
-    return remove_non_duplicates(size_filenames_dict)
+
+def process_command_line_items(cli_items, ignore_zero_len=True):
+    """Handle command line items."""
+    size_filename_dict = {}
+    for thing in cli_items:
+        # TODO: Make work with symbolic links
+        if os.path.exists(thing):
+            if os.path.isdir(thing):
+                group_files_by_size(thing, size_filename_dict, ignore_zero_len)
+            else:
+                add_file_to_size_map(thing, size_filename_dict, ignore_zero_len)
+    return size_filename_dict
 
 
 def hash_list_of_files(list_of_filenames, hash_func_name):
@@ -97,23 +98,14 @@ def print_grouped_files(dic):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("bar", nargs="+")
-    args = parser.parse_args()
-    pprint(args.bar)
+    PARSER = argparse.ArgumentParser()
+    PARSER.add_argument("items", nargs="+")
+    ARGS = PARSER.parse_args()
 
-    for thing in args.bar:
-        if os.path.exists(thing):
-            if os.path.isdir(thing):
-                pprint(thing + " Directory")
-            else:
-                pprint(thing + " File")
-
-    _DIC = group_files_by_size("/Users/gejohann/Dropbox/Gooble")
+    _DIC = process_command_line_items(ARGS.items)
+    _DIC = remove_non_duplicates(_DIC)
     print_grouped_files(
         group_files_by_hash_function(
             _DIC, ["md5", "sha1", "sha224", "sha256", "sha384", "sha512"]
         )
     )
-
-# TODO: Make work with symbolic links
