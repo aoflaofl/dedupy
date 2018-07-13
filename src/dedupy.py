@@ -33,18 +33,21 @@ def group_files_by_size(start_dir=".", ignore_zero_len=True):
     return remove_non_duplicates(size_filenames_dict)
 
 
-def hash_list_of_files(list_of_files, hash_func=hashlib.sha1):
+def hash_list_of_files(list_of_filenames, hash_func_name):
     """Take a list of files and group them by a hash function."""
     hash_files = {}
-    for filename in list_of_files:
+    for filename in list_of_filenames:
+
         try:
             data = open(filename, "rb").read()
         except (PermissionError, FileNotFoundError):
             continue
 
-        hsh = hash_func(d).hexdigest()
+        hash_obj = hashlib.new(hash_func_name)
+        hash_obj.update(data)
+        digest = hash_obj.hexdigest()
         # pprint((h, filename))
-        hash_files.setdefault(hsh, []).append(filename)
+        hash_files.setdefault(digest, []).append(filename)
 
     return hash_files
 
@@ -59,16 +62,29 @@ def remove_non_duplicates(dic):
     return {key: value for (key, value) in dic.items() if len(value) > 1}
 
 
-def group_files_by_hash_function(dic):
+def group_files_by_hash_function(dic, hash_list):
     """Group files in each list by hash value, discarding non-duplicates."""
-    out_dict = {}
-    for file_list in dic.values():
-        hash_dict = hash_list_of_files(file_list)
-        some_other_dict = remove_non_duplicates(hash_dict)
-        out_dict.update(some_other_dict)
+    # pprint(hashlib.algorithms_guaranteed)
+    for hash_name in hash_list:
+        pprint("Hashing using " + hash_name + " algorithm.")
+        out_dict = {}
+        for file_list in dic.values():
+            hash_dict = hash_list_of_files(file_list, hash_name)
+            some_other_dict = remove_non_duplicates(hash_dict)
+            out_dict.update(some_other_dict)
+        dic = out_dict
     return out_dict
 
 
+def print_grouped_files(dic):
+    """Print the file groups."""
+    pprint(dic)
+
+
 if __name__ == "__main__":
-    _DIC = group_files_by_size(".")
-    pprint(group_files_by_hash_function(_DIC))
+    _DIC = group_files_by_size("/Users/gejohann/Dropbox/Gooble")
+    print_grouped_files(
+        group_files_by_hash_function(
+            _DIC, ["md5", "sha1", "sha224", "sha256", "sha384", "sha512"]
+        )
+    )
