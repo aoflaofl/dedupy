@@ -33,7 +33,7 @@ def group_files_by_size(start_dir=".", ignore_zero_len=True):
     return remove_non_duplicates(size_filenames_dict)
 
 
-def hash_list_of_files(list_of_files):
+def hash_list_of_files(list_of_files, hash_func=hashlib.sha1):
     """Take a list of files and group them by a hash function."""
     hash_files = {}
     for filename in list_of_files:
@@ -42,7 +42,7 @@ def hash_list_of_files(list_of_files):
         except (PermissionError, FileNotFoundError):
             continue
 
-        hsh = hashlib.sha1(data).hexdigest()
+        hsh = hash_func(d).hexdigest()
         # pprint((h, filename))
         hash_files.setdefault(hsh, []).append(filename)
 
