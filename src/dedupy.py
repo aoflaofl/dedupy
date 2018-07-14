@@ -90,7 +90,8 @@ def group_files_by_hash_function(dic, hash_list):
     """Group files in each list by hash value, discarding non-duplicates."""
     # pprint(hashlib.algorithms_guaranteed)
     for hash_name in hash_list:
-        pprint("Hashing using " + hash_name + " algorithm.")
+        length = len(dic)
+        pprint("Hashing " + str(length) + " clusters using " + hash_name + " algorithm.")
         out_dict = {}
         for file_list in dic.values():
             hash_dict = hash_list_of_files(file_list, hash_name)
@@ -102,7 +103,10 @@ def group_files_by_hash_function(dic, hash_list):
 
 def print_grouped_files(dic):
     """Print the file groups."""
-    pprint(dic)
+    for key in dic:
+      print(key)
+      for file in dic[key]:
+          print(file)
 
 
 if __name__ == "__main__":
