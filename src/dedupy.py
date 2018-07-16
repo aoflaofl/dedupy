@@ -115,9 +115,11 @@ if __name__ == "__main__":
     ARGS = PARSER.parse_args()
 
     _DIC = process_command_line_items(ARGS.items)
+    print("Clusters: " + str(len(_DIC)))
     _DIC = remove_non_duplicates(_DIC)
     print_grouped_files(
         group_files_by_hash_function(
-            _DIC, ["md5", "sha1", "sha224", "sha256", "sha384", "sha512"]
+            #_DIC, ["md5", "sha1", "sha224", "sha256", "sha384", "sha512"]
+            _DIC, ["sha384", "sha512"]
         )
     )
