@@ -7,54 +7,57 @@ Adapted from a sample script by Randall Hettinger.
 import argparse
 import hashlib
 import os
-from pprint import pprint
+import time
 from collections import Counter
-
-c = Counter()
-
-
-def add_file_to_size_map(fullname, size_filenames_dict, ignore_zero_len=True):
-    """Map a single file."""
-    try:
-        file_ino = os.stat(fullname).st_ino
-        c[file_ino] += 1
-        if c[file_ino] > 1:
-            return
-        file_size = os.stat(fullname).st_size
-
-        if ignore_zero_len is True and file_size == 0:
-            return
-
-        size_filenames_dict.setdefault(file_size, []).append(fullname)
-    except (PermissionError, FileNotFoundError):
-        # TODO: Optionally report error
-        pass
+from pprint import pprint
 
 
-def group_files_by_size(start_dir, size_filenames_dict, ignore_zero_len=True):
-    """
-    Create a dict of files mapped to size.
+def group_files_by_size(items):
+    """Build a map of file sizes as key and list of files of that size as value."""
+    file_count = Counter()
 
-    By default ignore zero length files.
-    """
-    for path, _, files in os.walk(start_dir):
-        for filename in files:
-            fullname = os.path.join(path, filename)
-            add_file_to_size_map(fullname, size_filenames_dict, ignore_zero_len)
+    def add_file_to_size_map(fullname, size_filenames_dict, ignore_zero_len=True):
+        """Map a single file."""
+        try:
+            file_ino = os.stat(fullname).st_ino
+            file_count[file_ino] += 1
+            if file_count[file_ino] > 1:
+                return
+            file_size = os.stat(fullname).st_size
 
+            if ignore_zero_len is True and file_size == 0:
+                return
 
-def process_command_line_items(cli_items, ignore_zero_len=True):
-    """Handle command line items."""
-    size_filename_dict = {}
-    for thing in cli_items:
-        # TODO: Make work with symbolic links.  Turn links into real paths and make
-        # sure they only get scanned once.
-        if os.path.exists(thing):
-            if os.path.isdir(thing):
-                group_files_by_size(thing, size_filename_dict, ignore_zero_len)
-            else:
-                add_file_to_size_map(thing, size_filename_dict, ignore_zero_len)
-    return size_filename_dict
+            size_filenames_dict.setdefault(file_size, []).append(fullname)
+        except (PermissionError, FileNotFoundError):
+            # TODO: Optionally report error
+            pass
+
+    def walk_directories_for_size(start_dir, size_filenames_dict, ignore_zero_len=True):
+        """
+        Create a dict of files mapped to size.
+
+        By default ignore zero length files.
+        """
+        for path, _, files in os.walk(start_dir):
+            for filename in files:
+                fullname = os.path.join(path, filename)
+                add_file_to_size_map(fullname, size_filenames_dict, ignore_zero_len)
+
+    def process_command_line_items(cli_items, ignore_zero_len=True):
+        """Handle command line items."""
+        size_filename_dict = {}
+        for thing in cli_items:
+            # TODO: Make work with symbolic links.  Turn links into real paths and make
+            # sure they only get scanned once.
+            if os.path.exists(thing):
+                if os.path.isdir(thing):
+                    walk_directories_for_size(thing, size_filename_dict, ignore_zero_len)
+                else:
+                    add_file_to_size_map(thing, size_filename_dict, ignore_zero_len)
+        return size_filename_dict
+
+    return process_command_line_items(items)
 
 
 def hash_list_of_files(list_of_filenames, hash_func_name):
@@ -91,7 +94,9 @@ def group_files_by_hash_function(dic, hash_list):
     # pprint(hashlib.algorithms_guaranteed)
     for hash_name in hash_list:
         length = len(dic)
-        pprint("Hashing " + str(length) + " clusters using " + hash_name + " algorithm.")
+        pprint(
+            "Hashing " + str(length) + " clusters using " + hash_name + " algorithm."
+        )
         out_dict = {}
         for file_list in dic.values():
             hash_dict = hash_list_of_files(file_list, hash_name)
@@ -104,9 +109,9 @@ def group_files_by_hash_function(dic, hash_list):
 def print_grouped_files(dic):
     """Print the file groups."""
     for key in dic:
-      print(key)
-      for file in dic[key]:
-          print(file)
+        print(key)
+        for file in dic[key]:
+            print(file)
 
 
 if __name__ == "__main__":
@@ -114,12 +119,15 @@ if __name__ == "__main__":
     PARSER.add_argument("items", nargs="+")
     ARGS = PARSER.parse_args()
 
-    _DIC = process_command_line_items(ARGS.items)
+    print("Start time: " + str(time.time()))
+    _DIC = group_files_by_size(ARGS.items)
     print("Clusters: " + str(len(_DIC)))
     _DIC = remove_non_duplicates(_DIC)
     print_grouped_files(
         group_files_by_hash_function(
-            #_DIC, ["md5", "sha1", "sha224", "sha256", "sha384", "sha512"]
-            _DIC, ["sha384", "sha512"]
+            # _DIC, ["md5", "sha1", "sha224", "sha256", "sha384", "sha512"]
+            _DIC,
+            ["sha384", "sha512"],
         )
     )
+    print("End time: " + str(time.time()))
