@@ -12,11 +12,13 @@ from collections import Counter
 from pprint import pprint
 
 
-def group_files_by_size(items):
+def group_files_by_size(items: list) -> dict:
     """Build a map of file sizes as key and list of files of that size as value."""
-    file_count = Counter()
+    file_count: Counter = Counter()
 
-    def add_file_to_size_map(fullname, size_filenames_dict, ignore_zero_len=True):
+    def add_file_to_size_map(
+        fullname: str, size_filenames: dict, ignore_zero_len: bool = True
+    ) -> None:
         """Map a single file."""
         try:
             file_ino = os.stat(fullname).st_ino
@@ -28,12 +30,14 @@ def group_files_by_size(items):
             if ignore_zero_len is True and file_size == 0:
                 return
 
-            size_filenames_dict.setdefault(file_size, []).append(fullname)
+            size_filenames.setdefault(file_size, []).append(fullname)
         except (PermissionError, FileNotFoundError):
             # TODO: Optionally report error
             pass
 
-    def walk_directories_for_size(start_dir, size_filenames_dict, ignore_zero_len=True):
+    def walk_directories_for_size(
+        start_dir: str, size_filenames: dict, ignore_zero_len: bool = True
+    ) -> None:
         """
         Create a dict of files mapped to size.
 
@@ -42,17 +46,21 @@ def group_files_by_size(items):
         for path, _, files in os.walk(start_dir):
             for filename in files:
                 fullname = os.path.join(path, filename)
-                add_file_to_size_map(fullname, size_filenames_dict, ignore_zero_len)
+                add_file_to_size_map(fullname, size_filenames, ignore_zero_len)
 
-    def process_command_line_items(cli_items, ignore_zero_len=True):
+    def process_command_line_items(
+        cli_items: list, ignore_zero_len: bool = True
+    ) -> dict:
         """Handle command line items."""
-        size_filename_dict = {}
+        size_filename_dict: dict = {}
         for thing in cli_items:
             # TODO: Make work with symbolic links.  Turn links into real paths and make
             # sure they only get scanned once.
             if os.path.exists(thing):
                 if os.path.isdir(thing):
-                    walk_directories_for_size(thing, size_filename_dict, ignore_zero_len)
+                    walk_directories_for_size(
+                        thing, size_filename_dict, ignore_zero_len
+                    )
                 else:
                     add_file_to_size_map(thing, size_filename_dict, ignore_zero_len)
         return size_filename_dict
@@ -60,9 +68,9 @@ def group_files_by_size(items):
     return process_command_line_items(items)
 
 
-def hash_list_of_files(list_of_filenames, hash_func_name):
+def hash_list_of_files(list_of_filenames: list, hash_func_name: str) -> dict:
     """Take a list of files and group them by a hash function."""
-    hash_files = {}
+    hash_files: dict = {}
     for filename in list_of_filenames:
 
         try:
@@ -79,7 +87,7 @@ def hash_list_of_files(list_of_filenames, hash_func_name):
     return hash_files
 
 
-def remove_non_duplicates(dic):
+def remove_non_duplicates(dic: dict) -> dict:
     """
     Create a new dict without entries that don't have duplicates.
 
@@ -89,7 +97,7 @@ def remove_non_duplicates(dic):
     return {key: value for (key, value) in dic.items() if len(value) > 1}
 
 
-def group_files_by_hash_function(dic, hash_list):
+def group_files_by_hash_function(dic: dict, hash_list: list) -> dict:
     """Group files in each list by hash value, discarding non-duplicates."""
     # pprint(hashlib.algorithms_guaranteed)
     for hash_name in hash_list:
@@ -106,7 +114,7 @@ def group_files_by_hash_function(dic, hash_list):
     return out_dict
 
 
-def print_grouped_files(dic):
+def print_grouped_files(dic: dict) -> None:
     """Print the file groups."""
     for key in dic:
         print(key)
