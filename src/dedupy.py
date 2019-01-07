@@ -16,9 +16,7 @@ def group_files_by_size(items: list) -> dict:
     """Build a map of file sizes as key and list of files of that size as value."""
     file_count: Counter = Counter()
 
-    def add_file_to_size_map(
-        fullname: str, size_filenames: dict, ignore_zero_len: bool = True
-    ) -> None:
+    def add_file_to_size_map(fullname: str, size_filenames: dict, ignore_zero_len: bool = True) -> None:
         """Map a single file."""
         try:
             stat_obj = os.stat(fullname)
@@ -36,9 +34,7 @@ def group_files_by_size(items: list) -> dict:
             # TODO: Optionally report error
             pass
 
-    def walk_directories_for_size(
-        start_dir: str, size_filenames: dict, ignore_zero_len: bool = True
-    ) -> None:
+    def walk_directories_for_size(start_dir: str, size_filenames: dict, ignore_zero_len: bool = True) -> None:
         """
         Create a dict of files mapped to size.
 
@@ -49,9 +45,7 @@ def group_files_by_size(items: list) -> dict:
                 fullname = os.path.relpath(os.path.join(path, filename))
                 add_file_to_size_map(fullname, size_filenames, ignore_zero_len)
 
-    def process_command_line_items(
-        cli_items: list, ignore_zero_len: bool = True
-    ) -> dict:
+    def process_command_line_items(cli_items: list, ignore_zero_len: bool = True) -> dict:
         """Handle command line items."""
         size_filename_dict: dict = {}
         for thing in cli_items:
@@ -59,9 +53,7 @@ def group_files_by_size(items: list) -> dict:
             # sure they only get scanned once.
             if os.path.exists(thing):
                 if os.path.isdir(thing):
-                    walk_directories_for_size(
-                        thing, size_filename_dict, ignore_zero_len
-                    )
+                    walk_directories_for_size(thing, size_filename_dict, ignore_zero_len)
                 else:
                     add_file_to_size_map(thing, size_filename_dict, ignore_zero_len)
         return size_filename_dict
@@ -103,9 +95,7 @@ def group_files_by_hash_function(dic: dict, hash_list: list) -> dict:
     # pprint(hashlib.algorithms_guaranteed)
     for hash_name in hash_list:
         length = len(dic)
-        pprint(
-            "Hashing " + str(length) + " clusters using " + hash_name + " algorithm."
-        )
+        pprint("Hashing " + str(length) + " clusters using " + hash_name + " algorithm.")
         out_dict = {}
         for file_list in dic.values():
             hash_dict = hash_list_of_files(file_list, hash_name)
