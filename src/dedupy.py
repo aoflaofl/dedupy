@@ -93,6 +93,7 @@ def remove_non_duplicates(dic: dict) -> dict:
 def group_files_by_hash_function(dic: dict, hash_list: list) -> dict:
     """Group files in each list by hash value, discarding non-duplicates."""
     # pprint(hashlib.algorithms_guaranteed)
+    out_dict = {}
     for hash_name in hash_list:
         length = len(dic)
         pprint("Hashing " + str(length) + " clusters using " + hash_name + " algorithm.")
