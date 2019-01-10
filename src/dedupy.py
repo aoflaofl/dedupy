@@ -13,7 +13,15 @@ from pprint import pprint
 
 
 def group_files_by_size(items: list) -> dict:
-    """Build a map of file sizes as key and list of files of that size as value."""
+    """
+    Build a dict with file sizes as keys and a list of files of that size as value.
+
+    Obviously only files of the same size can be duplicates so this is the first
+    step to remove non-duplicates from further processing.
+    """
+
+    # Keep count of the number of times a file is seen in case it is scanned more than once through.
+    # The key for this counter is the device number and the inode of the file.
     file_count: Counter = Counter()
 
     def add_file_to_size_map(fullname: str, size_filenames: dict, ignore_zero_len: bool = True) -> None:
@@ -22,6 +30,7 @@ def group_files_by_size(items: list) -> dict:
             stat_obj = os.stat(fullname)
             file_id = (stat_obj.st_dev, stat_obj.st_ino)
             file_count[file_id] += 1
+            # Check if this file has been seen before and exit because it has already been processed.
             if file_count[file_id] > 1:
                 return
             file_size = stat_obj.st_size
@@ -51,6 +60,7 @@ def group_files_by_size(items: list) -> dict:
         for thing in cli_items:
             # TODO: Make work with symbolic links.  Turn links into real paths and make
             # sure they only get scanned once.
+            # TODO: Ignore files/directories that start with '.'
             if os.path.exists(thing):
                 if os.path.isdir(thing):
                     walk_directories_for_size(thing, size_filename_dict, ignore_zero_len)
@@ -93,7 +103,7 @@ def remove_non_duplicates(dic: dict) -> dict:
 def group_files_by_hash_function(dic: dict, hash_list: list) -> dict:
     """Group files in each list by hash value, discarding non-duplicates."""
     # pprint(hashlib.algorithms_guaranteed)
-    out_dict = {}
+    out_dict: dict = {}
     for hash_name in hash_list:
         length = len(dic)
         pprint("Hashing " + str(length) + " clusters using " + hash_name + " algorithm.")
@@ -116,8 +126,14 @@ def print_grouped_files(dic: dict) -> None:
 
 if __name__ == "__main__":
     PARSER = argparse.ArgumentParser()
+    # TODO: Implement include zero length files.
+    PARSER.add_argument("-z", "--zero", action="store_true", help="Include zero length files.")
+    # TODO: Implement include of dot files and directories
+    PARSER.add_argument("-d", "--dot", action="store_true", help="Include '.' files and directories")
     PARSER.add_argument("items", nargs="+")
     ARGS = PARSER.parse_args()
+
+    pprint(ARGS)
 
     print("Start time: " + str(time.time()))
     _DIC = group_files_by_size(ARGS.items)
