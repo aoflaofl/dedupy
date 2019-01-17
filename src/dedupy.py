@@ -43,19 +43,20 @@ def group_files_by_size(items: list) -> dict:
             # TODO: Optionally report error
             pass
 
-    def walk_directories_for_size(start_dir: str, size_filenames: dict, ignore_zero_len: bool = True) -> None:
-        """
-        Create a dict of files mapped to size.
-
-        By default ignore zero length files.
-        """
-        for path, _, files in os.walk(start_dir):
-            for filename in files:
-                fullname = os.path.relpath(os.path.join(path, filename))
-                add_file_to_size_map(fullname, size_filenames, ignore_zero_len)
-
     def process_command_line_items(cli_items: list, ignore_zero_len: bool = True) -> dict:
         """Handle command line items."""
+
+        def walk_directories_for_size(start_dir: str, size_filenames: dict, ignore_zero_len: bool = True) -> None:
+            """
+            Create a dict of files mapped to size.
+
+            By default ignore zero length files.
+            """
+            for path, _, files in os.walk(start_dir):
+                for filename in files:
+                    fullname = os.path.relpath(os.path.join(path, filename))
+                    add_file_to_size_map(fullname, size_filenames, ignore_zero_len)
+
         size_filename_dict: dict = {}
         for thing in cli_items:
             # TODO: Make work with symbolic links.  Turn links into real paths and make
