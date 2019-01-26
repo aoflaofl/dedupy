@@ -20,8 +20,9 @@ def group_files_by_size(items: list) -> dict:
     step to remove non-duplicates from further processing.
     """
 
-    # Keep count of the number of times a file is seen in case it is scanned more than once through.
-    # The key for this counter is the device number and the inode of the file.
+    # Keep count of the number of times a file is seen in case it is scanned more than once.
+    # The key for this counter is the device number and the inode of the file, the combination of which should be
+    # unique for all files.
     file_count: Counter = Counter()
 
     def add_file_to_size_map(fullname: str, size_filenames: dict, ignore_zero_len: bool = True) -> None:
@@ -30,7 +31,7 @@ def group_files_by_size(items: list) -> dict:
             stat_obj = os.stat(fullname)
             file_id = (stat_obj.st_dev, stat_obj.st_ino)
             file_count[file_id] += 1
-            # Check if this file has been seen before and exit because it has already been processed.
+            # Check if this file has been seen before and exit so it isn't processed twice.
             if file_count[file_id] > 1:
                 return
             file_size = stat_obj.st_size
