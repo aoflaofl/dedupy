@@ -126,6 +126,13 @@ def print_grouped_files(dic: dict) -> None:
             print(file)
 
 
+def hash_file_list(key: str, dic:dict, hash_list: list) -> None:
+    out_dict = hash_list_of_files(dic[key], hash_list[0])
+    out_dict = remove_non_duplicates(out_dict)
+    if len(out_dict) > 1:
+        pprint(out_dict)
+
+
 if __name__ == "__main__":
     PARSER = argparse.ArgumentParser()
     # TODO: Implement include zero length files.
@@ -141,12 +148,15 @@ if __name__ == "__main__":
     _DIC = group_files_by_size(ARGS.items)
     print("Clusters: " + str(len(_DIC)))
     _DIC = remove_non_duplicates(_DIC)
-    print_grouped_files(
-        group_files_by_hash_function(
+
+    for key in _DIC:
+        out_dic = hash_file_list(key, _DIC, ["md5"])
+        # pprint(out_dic)
+    # _DIC = group_files_by_hash_function(
             # _DIC, ["md5", "sha1", "sha224", "sha256", "sha384", "sha512"]
-            _DIC,
+    #        _DIC,
             # ["md5", "sha384", "sha512"],
-            ["md5"]
-        )
-    )
+    #       ["md5"]
+    # )
+    # print_grouped_files(_DIC)
     print("End time: " + str(time.time()))
