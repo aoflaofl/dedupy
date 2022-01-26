@@ -127,9 +127,9 @@ def print_grouped_files(dic: dict) -> None:
 
 
 def hash_file_list(key: int, dic: dict, hash_list: list) -> dict:
-    out_dict = hash_list_of_files(dic[key], hash_list[0])
-    out_dict = remove_non_duplicates(out_dict)
-    return out_dict
+    out = hash_list_of_files(dic[key], hash_list[0])
+    out = remove_non_duplicates(out)
+    return out
 
 
 if __name__ == "__main__":
@@ -152,12 +152,13 @@ if __name__ == "__main__":
     cluster = 1
     for key in _DIC:
         out_dict = hash_file_list(key, _DIC, ["md5"])
-        if len(out_dict) > 1:
+        if out_dict:
             # print(key)
-            for k in out_dict:
-                print(f'cluster: {cluster} size={key} hash={k}')
+            for hashkey in out_dict:
+                print(f'cluster: {cluster} size={key} hash={hashkey}')
                 cluster = cluster + 1
-                pprint(out_dict[k])
+                for filename in out_dict[hashkey]:
+                    print(filename)
 
         # pprint(out_dic)
     # _DIC = group_files_by_hash_function(
