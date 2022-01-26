@@ -5,9 +5,9 @@ Adapted from a sample script by Randall Hettinger.
 """
 
 import argparse
+import datetime
 import hashlib
 import os
-import time
 from collections import Counter
 from pprint import pprint
 
@@ -143,10 +143,11 @@ if __name__ == "__main__":
 
     pprint(ARGS)
 
-    print("Start time: " + str(time.time()))
+    print("Start time: ", datetime.datetime.now())
     _DIC = group_files_by_size(ARGS.items)
-    print("Clusters: " + str(len(_DIC)))
+    print("Raw file size clusters: " + str(len(_DIC)))
     _DIC = remove_non_duplicates(_DIC)
+    print("Non-duplicate file clusters: " + str(len(_DIC)))
 
     cluster = 1
     for key in _DIC:
@@ -166,4 +167,4 @@ if __name__ == "__main__":
     #       ["md5"]
     # )
     # print_grouped_files(_DIC)
-    print("End time: " + str(time.time()))
+    print("End time: ", datetime.datetime.now())
