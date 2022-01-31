@@ -59,7 +59,7 @@ def group_files_by_size(items: list) -> dict:
                     add_file_to_size_map(fullname, size_filenames, ignore_zero_len)
 
         size_filename_dict: dict = {}
-        for thing in cli_items:
+        for thing in items:
             # TODO: Make work with symbolic links.  Turn links into real paths and make
             # sure they only get scanned once.
             # TODO: Ignore files/directories that start with '.'
@@ -151,7 +151,7 @@ if __name__ == "__main__":
 
     cluster = 1
     for key in _DIC:
-        out_dict = hash_file_list(key, _DIC, ["md5"])
+        out_dict = hash_file_list(key, _DIC, ["sha1"])
         if out_dict:
             # print(key)
             for hashkey in out_dict:
