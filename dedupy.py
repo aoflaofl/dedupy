@@ -161,9 +161,8 @@ if __name__ == "__main__":
     for key in _DIC:
         out_dict = hash_file_list(key, _DIC, ["sha1"])
         if out_dict:
-            # print(key)
             for hashkey in out_dict:
-                print(f'cluster: {cluster} size={key} hash={hashkey}')
+                print(f'{len(out_dict[hashkey])} files in cluster {cluster} ({key} bytes, digest {hashkey})')
                 cluster = cluster + 1
                 for filename in out_dict[hashkey]:
                     print(filename)
