@@ -53,7 +53,10 @@ def group_files_by_size(items: list) -> dict:
 
             By default ignore zero length files.
             """
-            for path, _, files in os.walk(start_dir):
+            for path, dirs, files in os.walk(start_dir):
+                # Remove . files and directories
+                files = [f for f in files if not f[0] == '.']
+                dirs[:] = [d for d in dirs if not d[0] == '.']
                 for filename in files:
                     fullname = os.path.relpath(os.path.join(path, filename))
                     add_file_to_size_map(fullname, size_filenames, ignore_zero_len)
