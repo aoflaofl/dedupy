@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Identify duplicate files.
 
@@ -145,7 +147,7 @@ if __name__ == "__main__":
     PARSER.add_argument("items", nargs="+")
     ARGS = PARSER.parse_args()
 
-    # pprint(ARGS)
+    pprint(ARGS)
 
     if ARGS.verbose:
         print("Start time: ", datetime.datetime.now())
