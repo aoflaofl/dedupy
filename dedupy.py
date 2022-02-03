@@ -138,16 +138,24 @@ if __name__ == "__main__":
     PARSER.add_argument("-z", "--zero", action="store_true", help="Include zero length files.")
     # TODO: Implement include of dot files and directories
     PARSER.add_argument("-d", "--dot", action="store_true", help="Include '.' files and directories")
+    PARSER.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
     PARSER.add_argument("items", nargs="+")
     ARGS = PARSER.parse_args()
 
-    pprint(ARGS)
+    # pprint(ARGS)
 
-    print("Start time: ", datetime.datetime.now())
+    if ARGS.verbose:
+        print("Start time: ", datetime.datetime.now())
+
     _DIC = group_files_by_size(ARGS.items)
-    print("Raw file size clusters: " + str(len(_DIC)))
+
+    if ARGS.verbose:
+        print("Raw file size clusters: " + str(len(_DIC)))
+
     _DIC = remove_non_duplicates(_DIC)
-    print("Non-duplicate file clusters: " + str(len(_DIC)))
+
+    if ARGS.verbose:
+        print("Non-duplicate file clusters: " + str(len(_DIC)))
 
     cluster = 1
     for key in _DIC:
@@ -168,4 +176,6 @@ if __name__ == "__main__":
     #       ["md5"]
     # )
     # print_grouped_files(_DIC)
-    print("End time: ", datetime.datetime.now())
+
+    if ARGS.verbose:
+        print("End time: ", datetime.datetime.now())
