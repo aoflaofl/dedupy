@@ -13,50 +13,44 @@ from collections import Counter
 from pprint import pprint
 
 
-def group_files_by_size(items: list) -> dict:
-    """Build a dict with file sizes as keys and a list of files of that size as value.
-
-    Obviously only files of the same size can be duplicates so this is the first
-    step to remove non-duplicates from further processing.
-    """
-    file_count: Counter = Counter()
-    size_filename_dict: dict = {}
-
-    def add_file_to_size_map(fullname: str, ignore_zero_len: bool = True) -> None:
-        """Map a single file."""
-
-        try:
-            stat_obj = os.stat(fullname)
-        except (PermissionError, FileNotFoundError):
-            # TODO: Optionally report error
-            return
-
-        file_id = (stat_obj.st_dev, stat_obj.st_ino)
-        if file_count[file_id] > 0:
-            return
+def add_file_to_size_map(fullname: str, file_count: Counter, size_filename_dict: dict,
+                         ignore_zero_len: bool = True):
+    try:
+        stat_obj = os.stat(fullname)
+    except (PermissionError, FileNotFoundError):
+        return
+    file_id = (stat_obj.st_dev, stat_obj.st_ino)
+    if file_count[file_id] == 0:
         file_count[file_id] += 1
         file_size = stat_obj.st_size
         if not (ignore_zero_len and file_size == 0):
             size_filename_dict.setdefault(file_size, []).append(fullname)
 
-    def process_directory(start_dir: str, ignore_zero_len: bool = True) -> None:
-        """Process a directory and its subdirectories."""
-        for path, dirs, files in os.walk(start_dir):
-            dirs[:] = [d for d in dirs if not d.startswith('.')]
-            for filename in (f for f in files if not f.startswith('.')):
+
+def process_directory(start_dir: str, file_count: Counter, size_filename_dict: dict,
+                      ignore_zero_len: bool = True):
+    for path, dirs, files in os.walk(start_dir):
+        dirs[:] = [d for d in dirs if not d.startswith('.')]
+        for filename in files:
+            if not filename.startswith('.'):
                 fullname = os.path.relpath(os.path.join(path, filename))
-                add_file_to_size_map(fullname, ignore_zero_len)
+                add_file_to_size_map(fullname, file_count, size_filename_dict, ignore_zero_len)
 
-    def process_items(ignore_zero_len: bool = True) -> None:
-        """Process command line items."""
-        for item in items:
-            if os.path.exists(item):
-                if os.path.isdir(item):
-                    process_directory(item, ignore_zero_len)
-                else:
-                    add_file_to_size_map(item, ignore_zero_len)
 
-    process_items()
+def process_items(items: list, file_count: Counter, size_filename_dict: dict,
+                  ignore_zero_len: bool = True):
+    for item in items:
+        if os.path.exists(item):
+            if os.path.isdir(item):
+                process_directory(item, file_count, size_filename_dict, ignore_zero_len)
+            else:
+                add_file_to_size_map(item, file_count, size_filename_dict, ignore_zero_len)
+
+
+def group_files_by_size(items: list) -> dict:
+    file_count = Counter()
+    size_filename_dict = {}
+    process_items(items, file_count, size_filename_dict)
     return size_filename_dict
 
 
@@ -141,7 +135,8 @@ if __name__ == "__main__":
     # TODO: Implement include zero length files.
     PARSER.add_argument("-z", "--zero", action="store_true", help="Include zero length files.")
     # TODO: Implement include of dot files and directories
-    PARSER.add_argument("-d", "--dot", action="store_true", help="Include '.' files and directories")
+    PARSER.add_argument("-d", "--dot", action="store_true",
+                        help="Include '.' files and directories")
     PARSER.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
     PARSER.add_argument("items", nargs="+")
     ARGS = PARSER.parse_args()
