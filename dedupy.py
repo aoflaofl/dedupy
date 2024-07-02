@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
-"""
-Identify duplicate files.
+"""Identify duplicate files.
 
 Adapted from a sample script by Randall Hettinger.
 """
@@ -15,67 +14,50 @@ from pprint import pprint
 
 
 def group_files_by_size(items: list) -> dict:
-    """
-    Build a dict with file sizes as keys and a list of files of that size as value.
+    """Build a dict with file sizes as keys and a list of files of that size as value.
 
     Obviously only files of the same size can be duplicates so this is the first
     step to remove non-duplicates from further processing.
     """
-
-    # Keep count of the number of times a file is seen in case it is scanned more than once.
-    # The key for this counter is the device number and the inode of the file, the combination of which should be
-    # unique for all files.
     file_count: Counter = Counter()
+    size_filename_dict: dict = {}
 
-    def add_file_to_size_map(fullname: str, size_filenames: dict, ignore_zero_len: bool = True) -> None:
+    def add_file_to_size_map(fullname: str, ignore_zero_len: bool = True) -> None:
         """Map a single file."""
+
         try:
             stat_obj = os.stat(fullname)
-            file_id = (stat_obj.st_dev, stat_obj.st_ino)
-            file_count[file_id] += 1
-            # Check if this file has been seen before and exit so it isn't processed twice.
-            if file_count[file_id] > 1:
-                return
-            file_size = stat_obj.st_size
-
-            if ignore_zero_len is True and file_size == 0:
-                return
-
-            size_filenames.setdefault(file_size, []).append(fullname)
         except (PermissionError, FileNotFoundError):
             # TODO: Optionally report error
-            pass
+            return
 
-    def process_command_line_items(cli_items: list, ignore_zero_len: bool = True) -> dict:
-        """Handle command line items."""
+        file_id = (stat_obj.st_dev, stat_obj.st_ino)
+        if file_count[file_id] > 0:
+            return
+        file_count[file_id] += 1
+        file_size = stat_obj.st_size
+        if not (ignore_zero_len and file_size == 0):
+            size_filename_dict.setdefault(file_size, []).append(fullname)
 
-        def walk_directories_for_size(start_dir: str, size_filenames: dict, ignore_zero_len: bool = True) -> None:
-            """
-            Create a dict of files mapped to size.
+    def process_directory(start_dir: str, ignore_zero_len: bool = True) -> None:
+        """Process a directory and its subdirectories."""
+        for path, dirs, files in os.walk(start_dir):
+            dirs[:] = [d for d in dirs if not d.startswith('.')]
+            for filename in (f for f in files if not f.startswith('.')):
+                fullname = os.path.relpath(os.path.join(path, filename))
+                add_file_to_size_map(fullname, ignore_zero_len)
 
-            By default ignore zero length files.
-            """
-            for path, dirs, files in os.walk(start_dir):
-                # Remove . files and directories
-                files = [f for f in files if not f[0] == '.']
-                dirs[:] = [d for d in dirs if not d[0] == '.']
-                for filename in files:
-                    fullname = os.path.relpath(os.path.join(path, filename))
-                    add_file_to_size_map(fullname, size_filenames, ignore_zero_len)
-
-        size_filename_dict: dict = {}
-        for thing in items:
-            # TODO: Make work with symbolic links.  Turn links into real paths and make
-            # sure they only get scanned once.
-            # TODO: Ignore files/directories that start with '.'
-            if os.path.exists(thing):
-                if os.path.isdir(thing):
-                    walk_directories_for_size(thing, size_filename_dict, ignore_zero_len)
+    def process_items(ignore_zero_len: bool = True) -> None:
+        """Process command line items."""
+        for item in items:
+            if os.path.exists(item):
+                if os.path.isdir(item):
+                    process_directory(item, ignore_zero_len)
                 else:
-                    add_file_to_size_map(thing, size_filename_dict, ignore_zero_len)
-        return size_filename_dict
+                    add_file_to_size_map(item, ignore_zero_len)
 
-    return process_command_line_items(items)
+    process_items()
+    return size_filename_dict
 
 
 def hash_list_of_files(list_of_filenames: list, hash_func_name: str) -> dict:
@@ -84,22 +66,22 @@ def hash_list_of_files(list_of_filenames: list, hash_func_name: str) -> dict:
     for filename in list_of_filenames:
 
         try:
-            data = open(filename, "rb").read()
+            f = open(filename, "rb")
         except (PermissionError, FileNotFoundError):
             continue
 
-        hash_obj = hashlib.new(hash_func_name)
-        hash_obj.update(data)
-        digest = hash_obj.hexdigest()
-        # pprint((h, filename))
-        hash_files.setdefault(digest, []).append(filename)
+        with f:
+            hash_obj = hashlib.new(hash_func_name)
+            hash_obj.update(f.read())
+            digest = hash_obj.hexdigest()
+            # pprint((h, filename))
+            hash_files.setdefault(digest, []).append(filename)
 
     return hash_files
 
 
 def remove_non_duplicates(dic: dict) -> dict:
-    """
-    Create a new dict without entries that don't have duplicates.
+    """Create a new dict without entries that don't have duplicates.
 
     Takes a dict with the key shared by
     all files in the list.
@@ -107,34 +89,51 @@ def remove_non_duplicates(dic: dict) -> dict:
     return {key: value for (key, value) in dic.items() if len(value) > 1}
 
 
-def group_files_by_hash_function(dic: dict, hash_list: list) -> dict:
-    """Group files in each list by hash value, discarding non-duplicates."""
-    # pprint(hashlib.algorithms_guaranteed)
-    out_dict: dict = {}
-    for hash_name in hash_list:
-        length = len(dic)
-        print("Hashing " + str(length) + " clusters using " + hash_name + " algorithm.")
-        out_dict = {}
-        for file_list in dic.values():
-            hash_dict = hash_list_of_files(file_list, hash_name)
-            some_other_dict = remove_non_duplicates(hash_dict)
-            out_dict.update(some_other_dict)
-        dic = out_dict
-    return out_dict
+def hash_file_list(list_of_files: list, hash_list: list) -> dict:
+    """Hash a list of files using the first hash algorithm from the provided list.
 
+    This function takes a list of files and a list of hash algorithms, uses the first
+    hash algorithm to hash the files, and then removes any non-duplicate entries.
 
-def print_grouped_files(dic: dict) -> None:
-    """Print the file groups."""
-    for key in dic:
-        print(key)
-        for file in dic[key]:
-            print(file)
+    Args:
+        list_of_files (list): A list of file paths to be hashed.
+        hash_list (list): A list of hash algorithm names. Only the first one is used.
 
+    Returns:
+        dict: A dictionary where keys are hash digests and values are lists of file paths
+              that share the same hash. Only entries with more than one file are included.
 
-def hash_file_list(key: int, dic: dict, hash_list: list) -> dict:
-    out = hash_list_of_files(dic[key], hash_list[0])
+    Note:
+        This function uses the first hash algorithm in hash_list, even if multiple are provided.
+    """
+    out = hash_list_of_files(list_of_files, hash_list[0])
     out = remove_non_duplicates(out)
     return out
+
+
+def print_file_clusters(_dic: dict) -> None:
+    """Print clusters of duplicate files grouped by size and hash.
+
+    This function iterates through a dictionary of file sizes and their corresponding
+    file lists. For each size group, it further hashes the files using SHA1 and
+    prints information about each cluster of identical files.
+
+    Prints:
+        For each cluster of identical files:
+        - Number of files in the cluster
+        - Cluster number
+        - File size in bytes
+        - SHA1 digest of the files
+        - List of file paths in the cluster
+    """
+    cluster = 1
+    for key, file_list in _dic.items():
+        out_dict = hash_file_list(file_list, ["sha1"])
+        for hashkey, filenames in out_dict.items():
+            print(f'{len(filenames)} files in cluster {cluster} ({key} bytes, digest {hashkey})')
+            for filename in filenames:
+                print(filename)
+            cluster += 1
 
 
 if __name__ == "__main__":
@@ -162,17 +161,7 @@ if __name__ == "__main__":
     if ARGS.verbose:
         print("Non-duplicate file clusters: " + str(len(_DIC)))
 
-    cluster = 1
-    for key in _DIC:
-        out_dict = hash_file_list(key, _DIC, ["sha1"])
-        if out_dict:
-            for hashkey in out_dict:
-                print(f'{len(out_dict[hashkey])} files in cluster {cluster} ({key} bytes, digest {hashkey})')
-                cluster = cluster + 1
-                for filename in out_dict[hashkey]:
-                    print(filename)
-
-        # pprint(out_dic)
+    print_file_clusters(_DIC)
     # _DIC = group_files_by_hash_function(
     # _DIC, ["md5", "sha1", "sha224", "sha256", "sha384", "sha512"]
     #        _DIC,
