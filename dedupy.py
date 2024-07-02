@@ -15,6 +15,23 @@ from pprint import pprint
 
 def add_file_to_size_map(fullname: str, file_count: Counter, size_filename_dict: dict,
                          ignore_zero_len: bool = True):
+    """Add a file to the size mapping if it meets certain conditions.
+
+    This function attempts to add a file, identified by its full path, to a mapping of file sizes to
+    lists of file paths. It first checks if the file exists and can be accessed. If so, it checks if
+    the file has already been counted (to handle hard links correctly). If the file is new or has
+    not
+    been added yet, it checks the file size and, based on the ignore_zero_len flag, decides whether
+    to add the file to the size mapping.
+
+    Args:
+        fullname (str): The full path of the file to be added.
+        file_count (Counter): A Counter object tracking the occurrence of each file based on its
+                              inode and device ID, to handle hard links.
+        size_filename_dict (dict): A dictionary mapping file sizes to lists of file paths.
+        ignore_zero_len (bool, optional): If True, files with zero length are not added to the
+                                          mapping. Defaults to True.
+    """
     try:
         stat_obj = os.stat(fullname)
     except (PermissionError, FileNotFoundError):
@@ -29,16 +46,49 @@ def add_file_to_size_map(fullname: str, file_count: Counter, size_filename_dict:
 
 def process_directory(start_dir: str, file_count: Counter, size_filename_dict: dict,
                       ignore_zero_len: bool = True):
+    """Process a directory and its subdirectories to map files by size.
+
+    This function walks through the directory specified by start_dir, including all subdirectories,
+    and processes each file that does not start with a dot ('.'). It adds each file to a size
+    mapping
+    unless the file is of zero length and ignore_zero_len is True. This helps in identifying
+    potential
+    duplicate files based on their size.
+
+    Args:
+        start_dir (str): The starting directory path to begin processing.
+        file_count (Counter): A Counter object to track occurrences of each file based on its inode
+        and device ID.
+        size_filename_dict (dict): A dictionary mapping file sizes to lists of file paths.
+        ignore_zero_len (bool, optional): If True, files with zero length are ignored. Defaults to
+        True.
+    """
     for path, dirs, files in os.walk(start_dir):
-        dirs[:] = [d for d in dirs if not d.startswith('.')]
+        dirs[:] = [d for d in dirs if
+                   not d.startswith('.')]  # Exclude directories starting with '.'
         for filename in files:
-            if not filename.startswith('.'):
+            if not filename.startswith('.'):  # Exclude files starting with '.'
                 fullname = os.path.relpath(os.path.join(path, filename))
                 add_file_to_size_map(fullname, file_count, size_filename_dict, ignore_zero_len)
 
 
 def process_items(items: list, file_count: Counter, size_filename_dict: dict,
                   ignore_zero_len: bool = True):
+    """Process each item in the provided list of paths.
+
+    This function iterates over a list of file or directory paths. For each path, it checks if the
+    path exists.
+    If the path is a directory, it processes the directory and its contents. If the path is a file,
+    it adds the
+    file to the size mapping. This function supports the option to ignore files of zero length.
+
+    Args:
+        items (list): A list of file or directory paths to process.
+        file_count (Counter): A Counter object to track the occurrence of each file.
+        size_filename_dict (dict): A dictionary mapping file sizes to lists of file paths.
+        ignore_zero_len (bool, optional): A flag to indicate whether to ignore files of zero length.
+        Defaults to True.
+    """
     for item in items:
         if os.path.exists(item):
             if os.path.isdir(item):
@@ -48,10 +98,26 @@ def process_items(items: list, file_count: Counter, size_filename_dict: dict,
 
 
 def group_files_by_size(items: list) -> dict:
-    file_count = Counter()
-    size_filename_dict = {}
-    process_items(items, file_count, size_filename_dict)
-    return size_filename_dict
+    """Group files by their size.
+
+    This function processes a list of file paths, grouping them by their size. It uses a counter to
+    track the occurrence of each file (identified by device and inode numbers to handle hard links
+    correctly) and a dictionary to associate file sizes with lists of file paths. Files with the
+    same size are considered potential duplicates and are grouped together in the dictionary. This
+    function is a preliminary step in identifying duplicate files based on their size before further
+    processing for exact matches.
+
+    Args:
+        items (list): A list of file paths to be grouped by size.
+
+    Returns:
+        dict: A dictionary where keys are file sizes and values are lists of file paths that have
+        that size.
+    """
+    file_count = Counter()  # Tracks occurrence of each file to handle hard links.
+    size_filename_dict = {}  # Maps file sizes to lists of file paths.
+    process_items(items, file_count, size_filename_dict)  # Process each item in the provided list.
+    return size_filename_dict  # Return the dictionary grouping files by size.
 
 
 def hash_list_of_files(list_of_filenames: list, hash_func_name: str) -> dict:
