@@ -10,7 +10,9 @@ import datetime
 import hashlib
 import os
 from collections import Counter
-from pprint import pprint
+
+VERBOSE = False
+DEBUG = False
 
 
 def add_file_to_size_map(fullname: str, file_count: Counter, size_filename_dict: dict,
@@ -68,7 +70,7 @@ def process_directory(start_dir: str, file_count: Counter, size_filename_dict: d
                    not d.startswith('.')]  # Exclude directories starting with '.'
         for filename in files:
             if not filename.startswith('.'):  # Exclude files starting with '.'
-                fullname = os.path.relpath(os.path.join(path, filename))
+                fullname = os.path.realpath(os.path.join(path, filename))
                 add_file_to_size_map(fullname, file_count, size_filename_dict, ignore_zero_len)
 
 
@@ -134,7 +136,7 @@ def hash_list_of_files(list_of_filenames: list, hash_func_name: str) -> dict:
             hash_obj = hashlib.new(hash_func_name)
             hash_obj.update(f.read())
             digest = hash_obj.hexdigest()
-            # pprint((h, filename))
+
             hash_files.setdefault(digest, []).append(filename)
 
     return hash_files
@@ -166,8 +168,20 @@ def hash_file_list(list_of_files: list, hash_list: list) -> dict:
     Note:
         This function uses the first hash algorithm in hash_list, even if multiple are provided.
     """
+
+    if DEBUG:
+        print("Num files to hash: %s", len(list_of_files))
+
+    start_time = datetime.datetime.now()
     out = hash_list_of_files(list_of_files, hash_list[0])
+
+    if DEBUG:
+        end_time = datetime.datetime.now()
+        elapsed_time = end_time - start_time
+        print("Hashing time: %s", elapsed_time)
+
     out = remove_non_duplicates(out)
+
     return out
 
 
@@ -197,39 +211,22 @@ def print_file_clusters(_dic: dict) -> None:
 
 
 if __name__ == "__main__":
-    PARSER = argparse.ArgumentParser()
-    # TODO: Implement include zero length files.
-    PARSER.add_argument("-z", "--zero", action="store_true", help="Include zero length files.")
-    # TODO: Implement include of dot files and directories
-    PARSER.add_argument("-d", "--dot", action="store_true",
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-z", "--zero", action="store_true", help="Include zero length files.")
+    parser.add_argument("-d", "--dot", action="store_true",
                         help="Include '.' files and directories")
-    PARSER.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
-    PARSER.add_argument("items", nargs="+")
-    ARGS = PARSER.parse_args()
+    parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
+    parser.add_argument("--debug", action="store_true", help="Extra verbose output")
+    parser.add_argument("items", nargs="+")
+    args = parser.parse_args()
 
-    pprint(ARGS)
+    if args.verbose:
+        VERBOSE = True
 
-    if ARGS.verbose:
-        print("Start time: ", datetime.datetime.now())
+    print("Arguments: %s", args)
 
-    _DIC = group_files_by_size(ARGS.items)
-
-    if ARGS.verbose:
-        print("Raw file size clusters: " + str(len(_DIC)))
+    _DIC = group_files_by_size(args.items)
 
     _DIC = remove_non_duplicates(_DIC)
 
-    if ARGS.verbose:
-        print("Non-duplicate file clusters: " + str(len(_DIC)))
-
     print_file_clusters(_DIC)
-    # _DIC = group_files_by_hash_function(
-    # _DIC, ["md5", "sha1", "sha224", "sha256", "sha384", "sha512"]
-    #        _DIC,
-    # ["md5", "sha384", "sha512"],
-    #       ["md5"]
-    # )
-    # print_grouped_files(_DIC)
-
-    if ARGS.verbose:
-        print("End time: ", datetime.datetime.now())
