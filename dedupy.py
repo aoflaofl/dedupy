@@ -12,7 +12,6 @@ import os
 from collections import Counter
 
 VERBOSE = False
-DEBUG = False
 
 
 def add_file_to_size_map(fullname: str, file_count: Counter, size_filename_dict: dict,
@@ -169,16 +168,16 @@ def hash_file_list(list_of_files: list, hash_list: list) -> dict:
         This function uses the first hash algorithm in hash_list, even if multiple are provided.
     """
 
-    if DEBUG:
-        print("Num files to hash: %s", len(list_of_files))
+    if VERBOSE:
+        print("Num files to hash: ", len(list_of_files))
 
     start_time = datetime.datetime.now()
     out = hash_list_of_files(list_of_files, hash_list[0])
 
-    if DEBUG:
+    if VERBOSE:
         end_time = datetime.datetime.now()
         elapsed_time = end_time - start_time
-        print("Hashing time: %s", elapsed_time)
+        print("Hashing time: ", elapsed_time)
 
     out = remove_non_duplicates(out)
 
@@ -216,14 +215,12 @@ if __name__ == "__main__":
     parser.add_argument("-d", "--dot", action="store_true",
                         help="Include '.' files and directories")
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
-    parser.add_argument("--debug", action="store_true", help="Extra verbose output")
     parser.add_argument("items", nargs="+")
     args = parser.parse_args()
 
     if args.verbose:
         VERBOSE = True
-
-    print("Arguments: %s", args)
+        print("Arguments: ", args)
 
     _DIC = group_files_by_size(args.items)
 
