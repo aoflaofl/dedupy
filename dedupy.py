@@ -8,6 +8,7 @@ Adapted from a sample script by Randall Hettinger.
 import argparse
 import datetime
 import hashlib
+import json
 import os
 from collections import Counter
 
@@ -209,6 +210,24 @@ def print_file_clusters(_dic: dict) -> None:
             cluster += 1
 
 
+def save_dict_to_json(dictionary: dict, filename: str) -> None:
+    """Save a dictionary to a JSON file.
+
+    This function takes a dictionary and saves it to a JSON file with the specified filename.
+    It opens the file in write mode and uses json.dump() to write the dictionary contents to the
+    file.
+
+    Args:
+        dictionary (dict): The dictionary to be saved to the JSON file.
+        filename (str): The name of the file to save the JSON data to.
+
+    Note:
+        This function will overwrite the file if it already exists.
+    """
+    with open(filename, 'w', encoding="utf-8") as f:
+        json.dump(dictionary, f)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-z", "--zero", action="store_true", help="Include zero length files.")
@@ -224,6 +243,10 @@ if __name__ == "__main__":
 
     _DIC = group_files_by_size(args.items)
 
+    save_dict_to_json(_DIC, 'file_sizes.json', )
+
     _DIC = remove_non_duplicates(_DIC)
+
+    save_dict_to_json(_DIC, 'file_sizes_clean.json', )
 
     print_file_clusters(_DIC)
