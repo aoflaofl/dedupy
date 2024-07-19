@@ -15,8 +15,12 @@ from collections import Counter
 DEBUG = False
 
 
-def add_file_to_size_map(fullname: str, file_count: Counter, size_filename_dict: dict,
-                         ignore_zero_len: bool = True):
+def add_file_to_size_map(
+        fullname: str,
+        file_count: Counter,
+        size_filename_dict: dict,
+        ignore_zero_len: bool = True,
+):
     """Add a file to the size mapping if it meets certain conditions.
 
     This function attempts to add a file, identified by its full path, to a mapping of file sizes to
@@ -46,8 +50,12 @@ def add_file_to_size_map(fullname: str, file_count: Counter, size_filename_dict:
             size_filename_dict.setdefault(file_size, []).append(fullname)
 
 
-def process_directory(start_dir: str, file_count: Counter, size_filename_dict: dict,
-                      ignore_zero_len: bool = True):
+def process_directory(
+        start_dir: str,
+        file_count: Counter,
+        size_filename_dict: dict,
+        ignore_zero_len: bool = True,
+):
     """Process a directory and its subdirectories to map files by size.
 
     This function walks through the directory specified by start_dir, including all subdirectories,
@@ -66,16 +74,21 @@ def process_directory(start_dir: str, file_count: Counter, size_filename_dict: d
         True.
     """
     for path, dirs, files in os.walk(start_dir):
-        dirs[:] = [d for d in dirs if
-                   not d.startswith('.')]  # Exclude directories starting with '.'
+        dirs[:] = [
+            d for d in dirs if not d.startswith(".")
+        ]  # Exclude directories starting with '.'
         for filename in files:
-            if not filename.startswith('.'):  # Exclude files starting with '.'
+            if not filename.startswith("."):  # Exclude files starting with '.'
                 fullname = os.path.realpath(os.path.join(path, filename))
                 add_file_to_size_map(fullname, file_count, size_filename_dict, ignore_zero_len)
 
 
-def process_items(items: list, file_count: Counter, size_filename_dict: dict,
-                  ignore_zero_len: bool = True):
+def process_items(
+        items: list,
+        file_count: Counter,
+        size_filename_dict: dict,
+        ignore_zero_len: bool = True,
+):
     """Process each item in the provided list of paths.
 
     This function iterates over a list of file or directory paths. For each path, it checks if the
@@ -99,7 +112,7 @@ def process_items(items: list, file_count: Counter, size_filename_dict: dict,
                 add_file_to_size_map(item, file_count, size_filename_dict, ignore_zero_len)
 
 
-def group_files_by_size(items: list) -> dict:
+def group_files_by_size(items: list, ignore_zero_len: bool) -> dict:
     """Group files by their size.
 
     This function processes a list of file paths, grouping them by their size. It uses a counter to
@@ -118,7 +131,7 @@ def group_files_by_size(items: list) -> dict:
     """
     file_count = Counter()  # Tracks occurrence of each file to handle hard links.
     size_filename_dict = {}  # Maps file sizes to lists of file paths.
-    process_items(items, file_count, size_filename_dict)  # Process each item in the provided list.
+    process_items(items, file_count, size_filename_dict, ignore_zero_len)
     return size_filename_dict  # Return the dictionary grouping files by size.
 
 
@@ -204,7 +217,7 @@ def print_file_clusters(_dic: dict) -> None:
     for key, file_list in _dic.items():
         out_dict = hash_file_list(file_list, ["sha1"])
         for hashkey, filenames in out_dict.items():
-            print(f'{len(filenames)} files in cluster {cluster} ({key} bytes, digest {hashkey})')
+            print(f"{len(filenames)} files in cluster {cluster} ({key} bytes, digest {hashkey})")
             for filename in filenames:
                 print(filename)
             cluster += 1
@@ -224,28 +237,47 @@ def save_dict_to_json(dictionary: dict, filename: str) -> None:
     Note:
         This function will overwrite the file if it already exists.
     """
-    with open(filename, 'w', encoding="utf-8") as f:
+    with open(filename, "w", encoding="utf-8") as f:
         json.dump(dictionary, f)
 
 
-if __name__ == "__main__":
+def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-z", "--zero", action="store_true", help="Include zero length files.")
-    parser.add_argument("-d", "--dot", action="store_true",
-                        help="Include '.' files and directories")
-    parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
+    parser.add_argument("-z", "--zero", action="store_true", help="Ignore zero length files.")
+    parser.add_argument(
+        "-a", "--all", action="store_true", help="Include hidden files and directories"
+    )
+    parser.add_argument("--debug", action="store_true", help="Debug output")
+    parser.add_argument("-s", "--save", action="store_true", help="Save intermediate results")
     parser.add_argument("items", nargs="+")
+
     args = parser.parse_args()
 
-    if args.verbose:
+    if args.debug:
         print("Arguments: ", args)
 
-    _DIC = group_files_by_size(args.items)
+    return args
 
-    save_dict_to_json(_DIC, 'file_sizes.json', )
 
-    _DIC = remove_non_duplicates(_DIC)
+def process_and_save_duplicates(items, save, ignore_zero_len: bool):
+    dupe_dict = group_files_by_size(items, ignore_zero_len)
+    if save:
+        save_dict_to_json(dupe_dict, "file_sizes.json")
+    return remove_non_duplicates(dupe_dict)
 
-    save_dict_to_json(_DIC, 'file_sizes_clean.json', )
 
-    print_file_clusters(_DIC)
+def save_clean_duplicates(dupe_dict, save):
+    if save:
+        save_dict_to_json(dupe_dict, "file_sizes_clean.json")
+
+
+def main():
+    args = parse_arguments()
+
+    dupe_dict = process_and_save_duplicates(args.items, args.save, args.zero)
+    save_clean_duplicates(dupe_dict, args.save)
+    print_file_clusters(dupe_dict)
+
+
+if __name__ == "__main__":
+    main()
