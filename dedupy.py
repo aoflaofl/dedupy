@@ -11,13 +11,14 @@ import hashlib
 import json
 import os
 from collections import Counter
+from pprint import pprint
 
 
 def add_file_to_size_map(
-    fullname: str,
-    file_count: Counter,
-    size_filename_dict: dict,
-    args,
+        fullname: str,
+        file_count: Counter,
+        size_filename_dict: dict,
+        args,
 ):
     try:
         stat_obj = os.stat(fullname)
@@ -32,10 +33,10 @@ def add_file_to_size_map(
 
 
 def process_directory(
-    start_dir: str,
-    file_count: Counter,
-    size_filename_dict: dict,
-    args,
+        start_dir: str,
+        file_count: Counter,
+        size_filename_dict: dict,
+        args,
 ):
     for path, dirs, files in os.walk(start_dir):
         dirs[:] = [d for d in dirs if not d.startswith(".")]
@@ -48,19 +49,19 @@ def process_directory(
 def group_files_by_size(items: list, args) -> dict:
     file_count = Counter()
     size_filename_dict = {}
-    
+
     for item in items:
         if os.path.exists(item):
             if os.path.isdir(item):
                 process_directory(item, file_count, size_filename_dict, args)
             else:
                 add_file_to_size_map(item, file_count, size_filename_dict, args)
-    
+
     return size_filename_dict
 
 
 def hash_list_of_files(list_of_filenames: list, hash_func_name: str) -> dict:
-    hash_files: dict = {}
+    map_hash_to_file_list: dict = {}
     for filename in list_of_filenames:
 
         try:
@@ -73,21 +74,21 @@ def hash_list_of_files(list_of_filenames: list, hash_func_name: str) -> dict:
             hash_obj.update(f.read())
             digest = hash_obj.hexdigest()
 
-            hash_files.setdefault(digest, []).append(filename)
+            map_hash_to_file_list.setdefault(digest, []).append(filename)
 
-    return hash_files
+    return map_hash_to_file_list
 
 
 def remove_non_duplicates(dic: dict) -> dict:
     return {key: value for (key, value) in dic.items() if len(value) > 1}
 
 
-def hash_file_list(list_of_files: list, hash_list: list, args) -> dict:
+def hash_file_list(list_of_files: list, hash_func_name: str, args) -> dict:
     if args.debug:
         print("Num files to hash: ", len(list_of_files))
 
     start_time = datetime.datetime.now()
-    out = hash_list_of_files(list_of_files, hash_list[0])
+    out = hash_list_of_files(list_of_files, hash_func_name)
 
     if args.debug:
         end_time = datetime.datetime.now()
@@ -99,15 +100,30 @@ def hash_file_list(list_of_files: list, hash_list: list, args) -> dict:
     return out
 
 
-def print_file_clusters(_dic: dict, args) -> None:
+def print_file_clusters(files_grouped_by_size: dict, args) -> None:
     cluster = 1
-    for key, file_list in _dic.items():
-        out_dict = hash_file_list(file_list, ["md5"], args)
-        for hashkey, filenames in out_dict.items():
-            print(f"{len(filenames)} files in cluster {cluster} ({key} bytes, digest {hashkey})")
+    for key, file_list in files_grouped_by_size.items():
+        out_dict = generate_hash_dict_from_list(file_list, ["md5", "sha256"], args)
+        for hash_key, filenames in out_dict.items():
+            print(f"{len(filenames)} files in cluster {cluster} ({key} bytes, digest {hash_key})")
             for filename in filenames:
                 print(filename)
             cluster += 1
+
+
+def generate_hash_dict_from_list(file_list: list, hash_list: list, args) -> dict:
+    out_dict = hash_file_list(file_list, hash_list[0], args)
+
+    if len(hash_list) > 1:
+        for hash_func_name in hash_list[1:]:
+            #print(f"Hashing with {hash_func_name}")
+            new_out_dict = {}
+            for key, file_list in out_dict.items():
+                new_out_dict.update(hash_file_list(file_list, hash_func_name, args))
+            out_dict = new_out_dict
+            # out_dict = hash_file_list(out_dict.keys(), hash_func_name, args)
+
+    return out_dict
 
 
 def save_dict_to_json(dictionary: dict, filename: str) -> None:
@@ -137,6 +153,10 @@ def parse_arguments():
 
     args = parser.parse_args()
 
+    # if hash_func_name not in hashlib.algorithms_available:
+    #     print(f"Hash function {hash_func_name} not available.")
+    #     return
+
     if args.debug:
         print("Arguments: ", args)
 
@@ -145,7 +165,10 @@ def parse_arguments():
 
 def find_duplicates(items: list, args) -> dict:
     file_groups = group_files_by_size(items, args)
-    return remove_non_duplicates(file_groups)
+    save_dict_to_json(file_groups, "file_groups.json")
+    out = remove_non_duplicates(file_groups)
+    save_dict_to_json(out, "file_groups_non_duplicate.json")
+    return out
 
 
 def main():
