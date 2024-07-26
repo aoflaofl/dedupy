@@ -11,7 +11,12 @@ import hashlib
 import json
 import os
 from collections import Counter
-from pprint import pprint
+import logging
+
+
+def setup_logging(debug):
+    level = logging.DEBUG if debug else logging.INFO
+    logging.basicConfig(level=level, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 def add_file_to_size_map(
@@ -63,29 +68,26 @@ def group_files_by_size(items: list, args) -> dict:
 def hash_list_of_files(list_of_filenames: list, hash_func_name: str) -> dict:
     map_hash_to_file_list: dict = {}
     for filename in list_of_filenames:
-
         try:
-            f = open(filename, "rb")
+            hash_obj = hashlib.new(hash_func_name)
+            with open(filename, "rb") as f:
+                while chunk := f.read(128 * hash_obj.block_size):
+                    hash_obj.update(chunk)
+                digest = hash_obj.hexdigest()
+
+                map_hash_to_file_list.setdefault(digest, []).append(filename)
         except (PermissionError, FileNotFoundError):
             continue
-
-        with f:
-            hash_obj = hashlib.new(hash_func_name)
-            hash_obj.update(f.read())
-            digest = hash_obj.hexdigest()
-
-            map_hash_to_file_list.setdefault(digest, []).append(filename)
 
     return map_hash_to_file_list
 
 
-def remove_non_duplicates(dic: dict) -> dict:
+def remove_single_member_groups(dic: dict) -> dict:
     return {key: value for (key, value) in dic.items() if len(value) > 1}
 
 
 def hash_file_list(list_of_files: list, hash_func_name: str, args) -> dict:
-    if args.debug:
-        print("Num files to hash: ", len(list_of_files))
+    logging.debug(f"Num files to hash: {len(list_of_files)}", )
 
     start_time = datetime.datetime.now()
     out = hash_list_of_files(list_of_files, hash_func_name)
@@ -93,9 +95,9 @@ def hash_file_list(list_of_files: list, hash_func_name: str, args) -> dict:
     if args.debug:
         end_time = datetime.datetime.now()
         elapsed_time = end_time - start_time
-        print("Hashing time: ", elapsed_time)
+        logging.debug(f"Hashing time: {elapsed_time}")
 
-    out = remove_non_duplicates(out)
+    out = remove_single_member_groups(out)
 
     return out
 
@@ -103,7 +105,7 @@ def hash_file_list(list_of_files: list, hash_func_name: str, args) -> dict:
 def print_file_clusters(files_grouped_by_size: dict, args) -> None:
     cluster = 1
     for key, file_list in files_grouped_by_size.items():
-        out_dict = generate_hash_dict_from_list(file_list, ["md5", "sha256"], args)
+        out_dict = generate_hash_dict_from_list(file_list, ["sha1"], args)
         for hash_key, filenames in out_dict.items():
             print(f"{len(filenames)} files in cluster {cluster} ({key} bytes, digest {hash_key})")
             for filename in filenames:
@@ -116,7 +118,7 @@ def generate_hash_dict_from_list(file_list: list, hash_list: list, args) -> dict
 
     if len(hash_list) > 1:
         for hash_func_name in hash_list[1:]:
-            #print(f"Hashing with {hash_func_name}")
+            # print(f"Hashing with {hash_func_name}")
             new_out_dict = {}
             for key, file_list in out_dict.items():
                 new_out_dict.update(hash_file_list(file_list, hash_func_name, args))
@@ -163,22 +165,31 @@ def parse_arguments():
     return args
 
 
-def find_duplicates(items: list, args) -> dict:
+def get_possible_duplicates_by_size(items: list, args) -> dict:
     file_groups = group_files_by_size(items, args)
     save_dict_to_json(file_groups, "file_groups.json")
-    out = remove_non_duplicates(file_groups)
+    out = remove_single_member_groups(file_groups)
     save_dict_to_json(out, "file_groups_non_duplicate.json")
     return out
 
 
 def main():
+    start_time = datetime.datetime.now()
+
     args = parse_arguments()
+    setup_logging(args.debug)
+
+    logging.debug("Starting dedupy")
 
     for i in hashlib.algorithms_available:
-        print(i)
+        logging.debug(f"Available hash algorithm: {i}")
 
-    dupe_dict = find_duplicates(args.items, args)
+    dupe_dict = get_possible_duplicates_by_size(args.items, args)
     print_file_clusters(dupe_dict, args)
+
+    end_time = datetime.datetime.now()
+    elapsed_time = end_time - start_time
+    logging.debug(f"Total running time: {elapsed_time}")
 
 
 if __name__ == "__main__":
