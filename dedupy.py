@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 
 """Identify duplicate files.
-
-Adapted from a sample script by Randall Hettinger.
 """
 
 import argparse
@@ -16,14 +14,14 @@ import logging
 
 def setup_logging(debug):
     level = logging.DEBUG if debug else logging.INFO
-    logging.basicConfig(level=level, format='%(asctime)s - %(levelname)s - %(message)s')
+    logging.basicConfig(level=level, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
 def add_file_to_size_map(
-        fullname: str,
-        file_count: Counter,
-        size_filename_dict: dict,
-        args,
+    fullname: str,
+    file_count: Counter,
+    size_filename_dict: dict,
+    args,
 ):
     try:
         stat_obj = os.stat(fullname)
@@ -38,10 +36,10 @@ def add_file_to_size_map(
 
 
 def process_directory(
-        start_dir: str,
-        file_count: Counter,
-        size_filename_dict: dict,
-        args,
+    start_dir: str,
+    file_count: Counter,
+    size_filename_dict: dict,
+    args,
 ):
     for path, dirs, files in os.walk(start_dir):
         dirs[:] = [d for d in dirs if not d.startswith(".")]
@@ -87,7 +85,7 @@ def remove_single_member_groups(dic: dict) -> dict:
 
 
 def hash_file_list(list_of_files: list, hash_func_name: str, args) -> dict:
-    logging.debug(f"Num files to hash: {len(list_of_files)}", )
+    logging.debug(f"Num files to hash: {len(list_of_files)}")
 
     start_time = datetime.datetime.now()
     out = hash_list_of_files(list_of_files, hash_func_name)
@@ -102,10 +100,10 @@ def hash_file_list(list_of_files: list, hash_func_name: str, args) -> dict:
     return out
 
 
-def print_file_clusters(files_grouped_by_size: dict, args) -> None:
+def print_file_clusters(files_grouped_by_size: dict, digest_algorithms: list, args) -> None:
     cluster = 1
     for key, file_list in files_grouped_by_size.items():
-        out_dict = generate_hash_dict_from_list(file_list, ["sha1"], args)
+        out_dict = generate_hash_dict_from_list(file_list, digest_algorithms, args)
         for hash_key, filenames in out_dict.items():
             print(f"{len(filenames)} files in cluster {cluster} ({key} bytes, digest {hash_key})")
             for filename in filenames:
@@ -113,11 +111,11 @@ def print_file_clusters(files_grouped_by_size: dict, args) -> None:
             cluster += 1
 
 
-def generate_hash_dict_from_list(file_list: list, hash_list: list, args) -> dict:
-    out_dict = hash_file_list(file_list, hash_list[0], args)
+def generate_hash_dict_from_list(file_list: list, digest_algorithms: list, args) -> dict:
+    out_dict = hash_file_list(file_list, digest_algorithms[0], args)
 
-    if len(hash_list) > 1:
-        for hash_func_name in hash_list[1:]:
+    if len(digest_algorithms) > 1:
+        for hash_func_name in digest_algorithms[1:]:
             # print(f"Hashing with {hash_func_name}")
             new_out_dict = {}
             for key, file_list in out_dict.items():
@@ -133,8 +131,18 @@ def save_dict_to_json(dictionary: dict, filename: str) -> None:
         json.dump(dictionary, f)
 
 
+def list_of_digest_algorithms(arg):
+    hash_algorithms = arg.split(",")
+    for algo in hash_algorithms:
+        if algo not in hashlib.algorithms_guaranteed:
+            raise ValueError(f"Invalid hash function: {algo}")
+    return hash_algorithms
+
+
 def parse_arguments():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        epilog=f"Allowed digest algorithms: {hashlib.algorithms_guaranteed}"
+    )
     parser.add_argument(
         "-z",
         "--zero",
@@ -151,16 +159,22 @@ def parse_arguments():
         default=False,
     )
     parser.add_argument("--debug", action="store_true", help="Debug output", default=False)
-    parser.add_argument("items", nargs="+", help="Files or directories to process.")
+    parser.add_argument(
+        "items",
+        nargs="+",
+        help="Files or directories to process.  Directories are processed recursively.",
+    )
+    parser.add_argument(
+        "-d",
+        "--digest",
+        metavar="ALGORITHM[,ALGORITHM,...]",
+        help="Specify the digest algorithms to use (default: sha1)",
+        type=list_of_digest_algorithms,
+        dest="digest_algorithms",
+        default=["sha1"],
+    )
 
     args = parser.parse_args()
-
-    # if hash_func_name not in hashlib.algorithms_available:
-    #     print(f"Hash function {hash_func_name} not available.")
-    #     return
-
-    if args.debug:
-        print("Arguments: ", args)
 
     return args
 
@@ -180,12 +194,10 @@ def main():
     setup_logging(args.debug)
 
     logging.debug("Starting dedupy")
-
-    for i in hashlib.algorithms_available:
-        logging.debug(f"Available hash algorithm: {i}")
+    logging.debug(f"Arguments: {args}")
 
     dupe_dict = get_possible_duplicates_by_size(args.items, args)
-    print_file_clusters(dupe_dict, args)
+    print_file_clusters(dupe_dict, args.digest_algorithms, args)
 
     end_time = datetime.datetime.now()
     elapsed_time = end_time - start_time
