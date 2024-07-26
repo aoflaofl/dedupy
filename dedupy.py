@@ -18,10 +18,10 @@ def setup_logging(debug):
 
 
 def add_file_to_size_map(
-    fullname: str,
-    file_count: Counter,
-    size_filename_dict: dict,
-    args,
+        fullname: str,
+        file_count: Counter,
+        size_filename_dict: dict,
+        args,
 ):
     try:
         stat_obj = os.stat(fullname)
@@ -36,15 +36,16 @@ def add_file_to_size_map(
 
 
 def process_directory(
-    start_dir: str,
-    file_count: Counter,
-    size_filename_dict: dict,
-    args,
+        start_dir: str,
+        file_count: Counter,
+        size_filename_dict: dict,
+        args,
 ):
     for path, dirs, files in os.walk(start_dir):
-        dirs[:] = [d for d in dirs if not d.startswith(".")]
+        if not args.all:
+            dirs[:] = [d for d in dirs if not d.startswith(".")]
         for filename in files:
-            if not filename.startswith("."):
+            if args.all or not filename.startswith("."):
                 fullname = os.path.realpath(os.path.join(path, filename))
                 add_file_to_size_map(fullname, file_count, size_filename_dict, args)
 
@@ -91,13 +92,10 @@ def hash_file_list(list_of_files: list, hash_func_name: str, args) -> dict:
     out = hash_list_of_files(list_of_files, hash_func_name)
 
     if args.debug:
-        end_time = datetime.datetime.now()
-        elapsed_time = end_time - start_time
-        logging.debug(f"Hashing time: {elapsed_time}")
+        elapsed_time = datetime.datetime.now() - start_time
+        logging.debug("Hashing time: %s", elapsed_time)
 
-    out = remove_single_member_groups(out)
-
-    return out
+    return remove_single_member_groups(out)
 
 
 def print_file_clusters(files_grouped_by_size: dict, digest_algorithms: list, args) -> None:
@@ -114,12 +112,11 @@ def print_file_clusters(files_grouped_by_size: dict, digest_algorithms: list, ar
 def generate_hash_dict_from_list(file_list: list, digest_algorithms: list, args) -> dict:
     out_dict = hash_file_list(file_list, digest_algorithms[0], args)
 
-    if len(digest_algorithms) > 1:
-        for hash_func_name in digest_algorithms[1:]:
-            new_out_dict = {}
-            for _, new_file_list in out_dict.items():
-                new_out_dict.update(hash_file_list(new_file_list, hash_func_name, args))
-            out_dict = new_out_dict
+    for hash_func_name in digest_algorithms[1:]:
+        new_out_dict = {}
+        for new_file_list in out_dict.values():
+            new_out_dict.update(hash_file_list(new_file_list, hash_func_name, args))
+        out_dict = new_out_dict
 
     return out_dict
 
