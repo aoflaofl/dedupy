@@ -85,7 +85,7 @@ def remove_single_member_groups(dic: dict) -> dict:
 
 
 def hash_file_list(list_of_files: list, hash_func_name: str, args) -> dict:
-    logging.debug(f"Num files to hash: {len(list_of_files)}")
+    logging.debug("Num files to hash: %d", len(list_of_files))
 
     start_time = datetime.datetime.now()
     out = hash_list_of_files(list_of_files, hash_func_name)
@@ -116,12 +116,10 @@ def generate_hash_dict_from_list(file_list: list, digest_algorithms: list, args)
 
     if len(digest_algorithms) > 1:
         for hash_func_name in digest_algorithms[1:]:
-            # print(f"Hashing with {hash_func_name}")
             new_out_dict = {}
-            for key, file_list in out_dict.items():
-                new_out_dict.update(hash_file_list(file_list, hash_func_name, args))
+            for _, new_file_list in out_dict.items():
+                new_out_dict.update(hash_file_list(new_file_list, hash_func_name, args))
             out_dict = new_out_dict
-            # out_dict = hash_file_list(out_dict.keys(), hash_func_name, args)
 
     return out_dict
 
@@ -181,9 +179,7 @@ def parse_arguments():
 
 def get_possible_duplicates_by_size(items: list, args) -> dict:
     file_groups = group_files_by_size(items, args)
-    save_dict_to_json(file_groups, "file_groups.json")
     out = remove_single_member_groups(file_groups)
-    save_dict_to_json(out, "file_groups_non_duplicate.json")
     return out
 
 
