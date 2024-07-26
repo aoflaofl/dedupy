@@ -187,14 +187,14 @@ def main():
     setup_logging(args.debug)
 
     logging.debug("Starting dedupy")
-    logging.debug(f"Arguments: {args}")
+    logging.debug("Arguments: %s", args)
 
     dupe_dict = get_possible_duplicates_by_size(args.items, args)
     print_file_clusters(dupe_dict, args.digest_algorithms, args)
 
     end_time = datetime.datetime.now()
     elapsed_time = end_time - start_time
-    logging.debug(f"Total running time: {elapsed_time}")
+    logging.debug("Total running time: %s", elapsed_time)
 
 
 if __name__ == "__main__":
