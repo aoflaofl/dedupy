@@ -18,10 +18,10 @@ def setup_logging(debug):
 
 
 def add_file_to_size_map(
-        fullname: str,
-        file_count: Counter,
-        size_filename_dict: dict,
-        args,
+    fullname: str,
+    file_count: Counter,
+    size_filename_dict: dict,
+    args,
 ):
     try:
         stat_obj = os.stat(fullname)
@@ -36,16 +36,16 @@ def add_file_to_size_map(
 
 
 def process_directory(
-        start_dir: str,
-        file_count: Counter,
-        size_filename_dict: dict,
-        args,
+    start_dir: str,
+    file_count: Counter,
+    size_filename_dict: dict,
+    args,
 ):
     for path, dirs, files in os.walk(start_dir):
-        if not args.all:
+        if not args.include_hidden_files:
             dirs[:] = [d for d in dirs if not d.startswith(".")]
         for filename in files:
-            if args.all or not filename.startswith("."):
+            if args.include_hidden_files or not filename.startswith("."):
                 fullname = os.path.realpath(os.path.join(path, filename))
                 add_file_to_size_map(fullname, file_count, size_filename_dict, args)
 
@@ -136,7 +136,7 @@ def list_of_digest_algorithms(arg):
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
-        epilog=f"Allowed digest algorithms: {hashlib.algorithms_guaranteed}"
+        epilog="Allowed digest algorithms: %s" % hashlib.algorithms_guaranteed
     )
     parser.add_argument(
         "-z",
@@ -152,6 +152,7 @@ def parse_arguments():
         action="store_true",
         help="Include hidden files and directories",
         default=False,
+        dest="include_hidden_files",
     )
     parser.add_argument("--debug", action="store_true", help="Debug output", default=False)
     parser.add_argument(
