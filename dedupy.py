@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
-"""Identify duplicate files.
-"""
+"""Identify duplicate files."""
 
 import argparse
 import datetime
@@ -55,11 +54,10 @@ def group_files_by_size(items: list, args) -> dict:
     size_filename_dict = {}
 
     for item in items:
-        if os.path.exists(item):
-            if os.path.isdir(item):
-                process_directory(item, file_count, size_filename_dict, args)
-            else:
-                add_file_to_size_map(item, file_count, size_filename_dict, args)
+        if os.path.isdir(item):
+            process_directory(item, file_count, size_filename_dict, args)
+        else:
+            add_file_to_size_map(item, file_count, size_filename_dict, args)
 
     return size_filename_dict
 
