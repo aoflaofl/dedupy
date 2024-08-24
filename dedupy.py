@@ -98,13 +98,19 @@ def hash_file_list(list_of_files: list, hash_func_name: str, args) -> dict:
 
 def print_file_clusters(files_grouped_by_size: dict, digest_algorithms: list, args) -> None:
     cluster = 1
+    save_out_dict = {}
     for key, file_list in files_grouped_by_size.items():
         out_dict = generate_hash_dict_from_list(file_list, digest_algorithms, args)
+        if args.save:
+            save_out_dict.update(out_dict)
         for hash_key, filenames in out_dict.items():
             print(f"{len(filenames)} files in cluster {cluster} ({key} bytes, digest {hash_key})")
             for filename in filenames:
                 print(filename)
             cluster += 1
+    if args.save:
+        save_dict_to_json(save_out_dict, args.save)
+        print(f"Saved output to {args.save}")
 
 
 def generate_hash_dict_from_list(file_list: list, digest_algorithms: list, args) -> dict:
@@ -166,6 +172,11 @@ def parse_arguments():
         type=list_of_digest_algorithms,
         dest="digest_algorithms",
         default=["sha1"],
+    )
+    parser.add_argument(
+        "-s",
+        "--save",
+        help="Save the final output as a JSON file",
     )
 
     args = parser.parse_args()
