@@ -11,16 +11,16 @@ from collections import Counter
 import logging
 
 
-def setup_logging(debug):
+def setup_logging(debug: bool):
     level = logging.DEBUG if debug else logging.INFO
     logging.basicConfig(level=level, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
 def add_file_to_size_map(
     fullname: str,
-    file_count: Counter,
-    size_filename_dict: dict,
-    args,
+    file_count: Counter[tuple[int, int]],
+    size_filename_dict: dict[int, list[str]],
+    args: argparse.Namespace,
 ):
     try:
         stat_obj = os.stat(fullname)
@@ -36,9 +36,9 @@ def add_file_to_size_map(
 
 def process_directory(
     start_dir: str,
-    file_count: Counter,
-    size_filename_dict: dict,
-    args,
+    file_count: Counter[tuple[int, int]],
+    size_filename_dict: dict[int, list[str]],
+    args: argparse.Namespace,
 ):
     for path, dirs, files in os.walk(start_dir):
         if not args.include_hidden_files:
@@ -49,9 +49,11 @@ def process_directory(
                 add_file_to_size_map(fullname, file_count, size_filename_dict, args)
 
 
-def group_files_by_size(items: list, args) -> dict:
-    file_count = Counter()
-    size_filename_dict = {}
+def group_files_by_size(
+    items: list[str], args: argparse.Namespace
+) -> dict[int, list[str]]:
+    file_count: Counter[tuple[int, int]] = Counter()
+    size_filename_dict: dict[int, list[str]] = {}
 
     for item in items:
         if os.path.isdir(item):
@@ -62,32 +64,86 @@ def group_files_by_size(items: list, args) -> dict:
     return size_filename_dict
 
 
-def hash_list_of_files(list_of_filenames: list, hash_func_name: str) -> dict:
-    map_hash_to_file_list: dict = {}
+def hash_list_of_files(
+    list_of_filenames: list[str],
+    hash_func_name: str,
+    chunk_size_multiplier: int = 128,
+    sample_size: int = 8192,
+) -> dict[str, list[str]]:
+    """
+    Hash a list of files to identify potential duplicates using a two-pass approach.
+
+    First, a quick hash is computed from the beginning of each file (using `sample_size` bytes).
+    Files with matching quick hashes are then fully hashed (using the specified hash function and chunk size).
+    Only files with matching quick hashes are fully hashed to improve performance.
+
+    Args:
+        list_of_filenames (list[str]): List of file paths to hash.
+        hash_func_name (str): Name of the hash function to use (e.g., 'sha1', 'md5').
+        chunk_size_multiplier (int, optional): Multiplier for the hash function's block size to determine read chunk size. Defaults to 128.
+        sample_size (int, optional): Number of bytes to read from the start of each file for the quick hash. Defaults to 8192.
+
+    Returns:
+        dict[str, list[str]]: Dictionary mapping full file hashes to lists of filenames that share that hash (potential duplicates).
+    """
+    logging.debug(
+        "Hashing files with %s (chunk size: %d, sample size: %d)",
+        hash_func_name,
+        chunk_size_multiplier,
+        sample_size,
+    )
+    # First pass: Quick hash of file beginnings
+    quick_hash_map: dict[str, list[str]] = {}
     for filename in list_of_filenames:
         try:
             hash_obj = hashlib.new(hash_func_name)
             with open(filename, "rb") as f:
-                while chunk := f.read(128 * hash_obj.block_size):
-                    hash_obj.update(chunk)
-                digest = hash_obj.hexdigest()
-
-                map_hash_to_file_list.setdefault(digest, []).append(filename)
-        except (PermissionError, FileNotFoundError):
+                chunk = f.read(sample_size)
+                hash_obj.update(chunk)
+            quick_digest = hash_obj.hexdigest() + "_quick"
+            quick_hash_map.setdefault(quick_digest, []).append(filename)
+        except (PermissionError, FileNotFoundError) as e:
+            logging.warning("Error processing file %s: %s", filename, e)
             continue
+        except Exception as e:
+            logging.error("Unexpected error with file %s: %s", filename, e)
+            continue
+
+    # Second pass: Full hash for files with matching quick hashes
+    map_hash_to_file_list: dict[str, list[str]] = {}
+    for _, similar_files in quick_hash_map.items():
+        if len(similar_files) > 1:  # Only process potential duplicates
+            for filename in similar_files:
+                try:
+                    hash_obj = hashlib.new(hash_func_name)
+                    with open(filename, "rb") as f:
+                        while chunk := f.read(128 * hash_obj.block_size):
+                            hash_obj.update(chunk)
+                    digest = hash_obj.hexdigest()
+                    map_hash_to_file_list.setdefault(digest, []).append(filename)
+                except (PermissionError, FileNotFoundError) as e:
+                    logging.warning("Error processing file %s: %s", filename, e)
+                    continue
+                except Exception as e:
+                    logging.error("Unexpected error with file %s: %s", filename, e)
+                    continue
 
     return map_hash_to_file_list
 
 
-def remove_single_member_groups(dic: dict) -> dict:
+def remove_single_member_groups(
+    dic: dict[object, list[str]],
+) -> dict[object, list[str]]:
     return {key: value for (key, value) in dic.items() if len(value) > 1}
 
 
-def hash_file_list(list_of_files: list, hash_func_name: str, args) -> dict:
+def hash_file_list(
+    list_of_files: list[str], hash_func_name: str, args: argparse.Namespace
+) -> dict[str, list[str]]:
     logging.debug("Num files to hash: %d", len(list_of_files))
 
     start_time = datetime.datetime.now()
-    out = hash_list_of_files(list_of_files, hash_func_name)
+    out = hash_list_of_files(list_of_files, hash_func_name, args.chunk_size_multiplier)
 
     if args.debug:
         elapsed_time = datetime.datetime.now() - start_time
@@ -97,10 +153,12 @@ def hash_file_list(list_of_files: list, hash_func_name: str, args) -> dict:
 
 
 def print_file_clusters(
-    files_grouped_by_size: dict, digest_algorithms: list, args
+    files_grouped_by_size: dict[int, list[str]],
+    digest_algorithms: list[str],
+    args: argparse.Namespace,
 ) -> None:
     cluster = 1
-    save_out_dict = {}
+    save_out_dict: dict[str, list[str]] = {}
     for key, file_list in files_grouped_by_size.items():
         out_dict = generate_hash_dict_from_list(file_list, digest_algorithms, args)
         if args.save:
@@ -118,12 +176,12 @@ def print_file_clusters(
 
 
 def generate_hash_dict_from_list(
-    file_list: list, digest_algorithms: list, args
-) -> dict:
+    file_list: list[str], digest_algorithms: list[str], args: argparse.Namespace
+) -> dict[str, list[str]]:
     out_dict = hash_file_list(file_list, digest_algorithms[0], args)
 
     for hash_func_name in digest_algorithms[1:]:
-        new_out_dict = {}
+        new_out_dict: dict[str, list[str]] = {}
         for new_file_list in out_dict.values():
             new_out_dict.update(hash_file_list(new_file_list, hash_func_name, args))
         out_dict = new_out_dict
@@ -131,12 +189,13 @@ def generate_hash_dict_from_list(
     return out_dict
 
 
-def save_dict_to_json(dictionary: dict, filename: str) -> None:
+def save_dict_to_json(dictionary: dict[str, list[str]], filename: str) -> None:
     with open(filename, "w", encoding="utf-8") as f:
         json.dump(dictionary, f, indent=2, ensure_ascii=False)
 
 
-def list_of_digest_algorithms(arg):
+def list_of_digest_algorithms(arg: str) -> list[str]:
+    """Parse a comma-separated list of hash algorithms."""
     hash_algorithms = arg.split(",")
     for algo in hash_algorithms:
         if algo not in hashlib.algorithms_guaranteed:
@@ -144,7 +203,7 @@ def list_of_digest_algorithms(arg):
     return hash_algorithms
 
 
-def parse_arguments():
+def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         epilog=f"Allowed digest algorithms: {hashlib.algorithms_guaranteed}"
     )
@@ -186,16 +245,24 @@ def parse_arguments():
         "--save",
         help="Save the final output as a JSON file",
     )
+    parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=128,
+        help="Chunk size multiplier for file reading (default: 128)",
+        dest="chunk_size_multiplier",
+    )
 
     args = parser.parse_args()
 
     return args
 
 
-def get_possible_duplicates_by_size(items: list, args) -> dict:
+def get_possible_duplicates_by_size(
+    items: list[str], args: argparse.Namespace
+) -> dict[int, list[str]]:
     file_groups = group_files_by_size(items, args)
-    out = remove_single_member_groups(file_groups)
-    return out
+    return remove_single_member_groups(file_groups)
 
 
 def main():
