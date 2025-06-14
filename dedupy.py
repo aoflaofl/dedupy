@@ -65,6 +65,7 @@ def group_files_by_size(
 
 
 def hash_list_of_files(
+    file_size: int,
     list_of_filenames: list[str],
     hash_func_name: str,
     chunk_size_multiplier: int = 128,
@@ -74,17 +75,20 @@ def hash_list_of_files(
     Hash a list of files to identify potential duplicates using a two-pass approach.
 
     First, a quick hash is computed from the beginning of each file (using `sample_size` bytes).
-    Files with matching quick hashes are then fully hashed (using the specified hash function and chunk size).
-    Only files with matching quick hashes are fully hashed to improve performance.
+    Files with matching quick hashes are then fully hashed (using the specified hash function and
+    chunk size). Only files with matching quick hashes are fully hashed to improve performance.
 
     Args:
         list_of_filenames (list[str]): List of file paths to hash.
         hash_func_name (str): Name of the hash function to use (e.g., 'sha1', 'md5').
-        chunk_size_multiplier (int, optional): Multiplier for the hash function's block size to determine read chunk size. Defaults to 128.
-        sample_size (int, optional): Number of bytes to read from the start of each file for the quick hash. Defaults to 8192.
+        chunk_size_multiplier (int, optional): Multiplier for the hash function's block size to
+        determine read chunk size. Defaults to 128.
+        sample_size (int, optional): Number of bytes to read from the start of each file for the
+        quick hash. Defaults to 8192.
 
     Returns:
-        dict[str, list[str]]: Dictionary mapping full file hashes to lists of filenames that share that hash (potential duplicates).
+        dict[str, list[str]]: Dictionary mapping full file hashes to lists of filenames that share
+        that hash (potential duplicates).
     """
     logging.debug(
         "Hashing files with %s (chunk size: %d, sample size: %d)",
@@ -138,12 +142,17 @@ def remove_single_member_groups(
 
 
 def hash_file_list(
-    list_of_files: list[str], hash_func_name: str, args: argparse.Namespace
+    file_size: int,
+    list_of_files: list[str],
+    hash_func_name: str,
+    args: argparse.Namespace,
 ) -> dict[str, list[str]]:
     logging.debug("Num files to hash: %d", len(list_of_files))
 
     start_time = datetime.datetime.now()
-    out = hash_list_of_files(list_of_files, hash_func_name, args.chunk_size_multiplier)
+    out = hash_list_of_files(
+        file_size, list_of_files, hash_func_name, args.chunk_size_multiplier
+    )
 
     if args.debug:
         elapsed_time = datetime.datetime.now() - start_time
@@ -159,13 +168,15 @@ def print_file_clusters(
 ) -> None:
     cluster = 1
     save_out_dict: dict[str, list[str]] = {}
-    for key, file_list in files_grouped_by_size.items():
-        out_dict = generate_hash_dict_from_list(file_list, digest_algorithms, args)
+    for file_size, file_list in files_grouped_by_size.items():
+        out_dict = generate_hash_dict_from_list(
+            file_size, file_list, digest_algorithms, args
+        )
         if args.save:
             save_out_dict.update(out_dict)
         for hash_key, filenames in out_dict.items():
             print(
-                f"{len(filenames)} files in cluster {cluster} ({key} bytes, digest {hash_key})"
+                f"{len(filenames)} files in cluster {cluster} ({file_size} bytes, digest {hash_key})"
             )
             for filename in filenames:
                 print(filename)
@@ -176,14 +187,19 @@ def print_file_clusters(
 
 
 def generate_hash_dict_from_list(
-    file_list: list[str], digest_algorithms: list[str], args: argparse.Namespace
+    file_size: int,
+    file_list: list[str],
+    digest_algorithms: list[str],
+    args: argparse.Namespace,
 ) -> dict[str, list[str]]:
-    out_dict = hash_file_list(file_list, digest_algorithms[0], args)
+    out_dict = hash_file_list(file_size, file_list, digest_algorithms[0], args)
 
     for hash_func_name in digest_algorithms[1:]:
         new_out_dict: dict[str, list[str]] = {}
         for new_file_list in out_dict.values():
-            new_out_dict.update(hash_file_list(new_file_list, hash_func_name, args))
+            new_out_dict.update(
+                hash_file_list(file_size, new_file_list, hash_func_name, args)
+            )
         out_dict = new_out_dict
 
     return out_dict
