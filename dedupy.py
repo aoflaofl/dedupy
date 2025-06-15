@@ -68,39 +68,18 @@ def group_files_by_size(
     return size_filename_dict
 
 
-def hash_list_of_files(
-    file_size: int,
+def quick_hash_list_of_files(
     list_of_filenames: list[str],
     hash_func_name: str,
-    chunk_size_multiplier: int = 128,
-    sample_size: int = 8192,
+    sample_size: int,
 ) -> dict[str, list[str]]:
-    """
-    Hash a list of files to identify potential duplicates using a two-pass approach.
-
-    First, a quick hash is computed from the beginning of each file (using `sample_size` bytes).
-    Files with matching quick hashes are then fully hashed (using the specified hash function and
-    chunk size). Only files with matching quick hashes are fully hashed to improve performance.
-
-    Args:
-        list_of_filenames (list[str]): List of file paths to hash.
-        hash_func_name (str): Name of the hash function to use (e.g., 'sha1', 'md5').
-        chunk_size_multiplier (int, optional): Multiplier for the hash function's block size to
-        determine read chunk size. Defaults to 128.
-        sample_size (int, optional): Number of bytes to read from the start of each file for the
-        quick hash. Defaults to 8192.
-
-    Returns:
-        dict[str, list[str]]: Dictionary mapping full file hashes to lists of filenames that share
-        that hash (potential duplicates).
-    """
+    """Return a mapping of quick hashes to files using only ``sample_size`` bytes."""
     logging.debug(
-        "Hashing files with %s (chunk size: %d, sample size: %d)",
+        "Quick hashing %d files with %s (sample size: %d)",
+        len(list_of_filenames),
         hash_func_name,
-        chunk_size_multiplier,
         sample_size,
     )
-    # First pass: Quick hash of file beginnings
     quick_hash_map: dict[str, list[str]] = {}
     for filename in list_of_filenames:
         try:
@@ -112,31 +91,56 @@ def hash_list_of_files(
             quick_hash_map.setdefault(quick_digest, []).append(filename)
         except (PermissionError, FileNotFoundError) as e:
             logging.warning("Error processing file %s: %s", filename, e)
-            continue
         except Exception as e:
             logging.error("Unexpected error with file %s: %s", filename, e)
-            continue
+    return quick_hash_map
 
-    # Second pass: Full hash for files with matching quick hashes
+
+def finalize_full_hashes(
+    quick_hash_map: dict[str, list[str]],
+    hash_func_name: str,
+    chunk_size_multiplier: int,
+) -> dict[str, list[str]]:
+    """Hash full files for groups returned by :func:`quick_hash_list_of_files`."""
+    logging.debug(
+        "Final hashing with %s (chunk size multiplier: %d)",
+        hash_func_name,
+        chunk_size_multiplier,
+    )
     map_hash_to_file_list: dict[str, list[str]] = {}
-    for _, similar_files in quick_hash_map.items():
-        if len(similar_files) > 1:  # Only process potential duplicates
+    for similar_files in quick_hash_map.values():
+        if len(similar_files) > 1:
             for filename in similar_files:
                 try:
                     hash_obj = hashlib.new(hash_func_name)
                     with open(filename, "rb") as f:
-                        while chunk := f.read(128 * hash_obj.block_size):
+                        while chunk := f.read(chunk_size_multiplier * hash_obj.block_size):
                             hash_obj.update(chunk)
                     digest = hash_obj.hexdigest()
                     map_hash_to_file_list.setdefault(digest, []).append(filename)
                 except (PermissionError, FileNotFoundError) as e:
                     logging.warning("Error processing file %s: %s", filename, e)
-                    continue
                 except Exception as e:
                     logging.error("Unexpected error with file %s: %s", filename, e)
-                    continue
-
     return map_hash_to_file_list
+
+
+def hash_list_of_files(
+    file_size: int,
+    list_of_filenames: list[str],
+    hash_func_name: str,
+    chunk_size_multiplier: int = 128,
+    sample_size: int = 8192,
+) -> dict[str, list[str]]:
+    """Hash files in two passes to identify duplicates."""
+    logging.debug(
+        "Hashing files with %s (chunk size: %d, sample size: %d)",
+        hash_func_name,
+        chunk_size_multiplier,
+        sample_size,
+    )
+    quick_hashes = quick_hash_list_of_files(list_of_filenames, hash_func_name, sample_size)
+    return finalize_full_hashes(quick_hashes, hash_func_name, chunk_size_multiplier)
 
 
 def remove_single_member_groups(
