@@ -11,6 +11,9 @@ from collections import Counter
 import logging
 
 
+DEFAULT_SAMPLE_SIZE = 8192  # Default sample size for quick hashing
+
+
 def setup_logging(debug: bool):
     """Configure logging verbosity."""
     level = logging.DEBUG if debug else logging.INFO
@@ -87,7 +90,7 @@ def quick_hash_list_of_files(
             with open(filename, "rb") as f:
                 chunk = f.read(sample_size)
                 hash_obj.update(chunk)
-            quick_digest = hash_obj.hexdigest() + "_quick"
+            quick_digest = hash_obj.hexdigest()
             quick_hash_map.setdefault(quick_digest, []).append(filename)
         except (PermissionError, FileNotFoundError) as e:
             logging.warning("Error processing file %s: %s", filename, e)
@@ -112,7 +115,9 @@ def finalize_full_hashes(
                 try:
                     hash_obj = hashlib.new(hash_func_name)
                     with open(filename, "rb") as f:
-                        while chunk := f.read(chunk_size_multiplier * hash_obj.block_size):
+                        while chunk := f.read(
+                            chunk_size_multiplier * hash_obj.block_size
+                        ):
                             hash_obj.update(chunk)
                     digest = hash_obj.hexdigest()
                     map_hash_to_file_list.setdefault(digest, []).append(filename)
@@ -126,7 +131,7 @@ def hash_list_of_files(
     list_of_filenames: list[str],
     hash_func_name: str,
     chunk_size_multiplier: int = 128,
-    sample_size: int = 8192,
+    sample_size: int = DEFAULT_SAMPLE_SIZE,
 ) -> dict[str, list[str]]:
     """Hash files in two passes to identify duplicates."""
     logging.debug(
@@ -137,7 +142,9 @@ def hash_list_of_files(
     )
     if file_size < sample_size:
         return quick_hash_list_of_files(list_of_filenames, hash_func_name, file_size)
-    quick_hashes = quick_hash_list_of_files(list_of_filenames, hash_func_name, sample_size)
+    quick_hashes = quick_hash_list_of_files(
+        list_of_filenames, hash_func_name, sample_size
+    )
     return finalize_full_hashes(quick_hashes, hash_func_name, chunk_size_multiplier)
 
 
@@ -159,7 +166,11 @@ def hash_file_list(
 
     start_time = datetime.datetime.now()
     out = hash_list_of_files(
-        file_size, list_of_files, hash_func_name, args.chunk_size_multiplier
+        file_size,
+        list_of_files,
+        hash_func_name,
+        args.chunk_size_multiplier,
+        args.sample_size,
     )
 
     if args.debug:
@@ -280,6 +291,13 @@ def parse_arguments() -> argparse.Namespace:
         help="Chunk size multiplier for file reading (default: 128)",
         dest="chunk_size_multiplier",
     )
+    parser.add_argument(
+        "--sample-size",
+        type=int,
+        default=DEFAULT_SAMPLE_SIZE,
+        help=f"Sample size for quick hashing (default: {DEFAULT_SAMPLE_SIZE} bytes)",
+        dest="sample_size",
+    )
 
     args = parser.parse_args()
 
@@ -294,7 +312,7 @@ def get_possible_duplicates_by_size(
     return remove_single_member_groups(file_groups)
 
 
-def main():
+def main() -> None:
     """Entry point for command-line invocation."""
     start_time = datetime.datetime.now()
 
