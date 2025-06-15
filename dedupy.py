@@ -91,8 +91,6 @@ def quick_hash_list_of_files(
             quick_hash_map.setdefault(quick_digest, []).append(filename)
         except (PermissionError, FileNotFoundError) as e:
             logging.warning("Error processing file %s: %s", filename, e)
-        except Exception as e:
-            logging.error("Unexpected error with file %s: %s", filename, e)
     return quick_hash_map
 
 
@@ -120,8 +118,6 @@ def finalize_full_hashes(
                     map_hash_to_file_list.setdefault(digest, []).append(filename)
                 except (PermissionError, FileNotFoundError) as e:
                     logging.warning("Error processing file %s: %s", filename, e)
-                except Exception as e:
-                    logging.error("Unexpected error with file %s: %s", filename, e)
     return map_hash_to_file_list
 
 
@@ -139,6 +135,8 @@ def hash_list_of_files(
         chunk_size_multiplier,
         sample_size,
     )
+    if file_size < sample_size:
+        return quick_hash_list_of_files(list_of_filenames, hash_func_name, file_size)
     quick_hashes = quick_hash_list_of_files(list_of_filenames, hash_func_name, sample_size)
     return finalize_full_hashes(quick_hashes, hash_func_name, chunk_size_multiplier)
 
