@@ -12,6 +12,7 @@ import logging
 
 
 def setup_logging(debug: bool):
+    """Configure logging verbosity."""
     level = logging.DEBUG if debug else logging.INFO
     logging.basicConfig(level=level, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -22,6 +23,7 @@ def add_file_to_size_map(
     size_filename_dict: dict[int, list[str]],
     args: argparse.Namespace,
 ):
+    """Record the size of a file if it hasn't been processed yet."""
     try:
         stat_obj = os.stat(fullname)
     except (PermissionError, FileNotFoundError):
@@ -40,6 +42,7 @@ def process_directory(
     size_filename_dict: dict[int, list[str]],
     args: argparse.Namespace,
 ):
+    """Traverse a directory tree and collect file sizes."""
     for path, dirs, files in os.walk(start_dir):
         if not args.include_hidden_files:
             dirs[:] = [d for d in dirs if not d.startswith(".")]
@@ -52,6 +55,7 @@ def process_directory(
 def group_files_by_size(
     items: list[str], args: argparse.Namespace
 ) -> dict[int, list[str]]:
+    """Map file sizes to filenames for all provided items."""
     file_count: Counter[tuple[int, int]] = Counter()
     size_filename_dict: dict[int, list[str]] = {}
 
@@ -138,6 +142,7 @@ def hash_list_of_files(
 def remove_single_member_groups(
     dic: dict[object, list[str]],
 ) -> dict[object, list[str]]:
+    """Remove entries from a dictionary that only contain a single item."""
     return {key: value for (key, value) in dic.items() if len(value) > 1}
 
 
@@ -147,6 +152,7 @@ def hash_file_list(
     hash_func_name: str,
     args: argparse.Namespace,
 ) -> dict[str, list[str]]:
+    """Hash a list of files of equal size using a specific algorithm."""
     logging.debug("Num files to hash: %d", len(list_of_files))
 
     start_time = datetime.datetime.now()
@@ -166,6 +172,7 @@ def print_file_clusters(
     digest_algorithms: list[str],
     args: argparse.Namespace,
 ) -> None:
+    """Print groups of duplicate files based on their hashes."""
     cluster = 1
     save_out_dict: dict[str, list[str]] = {}
     for file_size, file_list in files_grouped_by_size.items():
@@ -192,6 +199,7 @@ def generate_hash_dict_from_list(
     digest_algorithms: list[str],
     args: argparse.Namespace,
 ) -> dict[str, list[str]]:
+    """Return a mapping of digests to filenames for a group of files."""
     out_dict = hash_file_list(file_size, file_list, digest_algorithms[0], args)
 
     for hash_func_name in digest_algorithms[1:]:
@@ -206,6 +214,7 @@ def generate_hash_dict_from_list(
 
 
 def save_dict_to_json(dictionary: dict[str, list[str]], filename: str) -> None:
+    """Write a dictionary of lists to a JSON file."""
     with open(filename, "w", encoding="utf-8") as f:
         json.dump(dictionary, f, indent=2, ensure_ascii=False)
 
@@ -220,6 +229,7 @@ def list_of_digest_algorithms(arg: str) -> list[str]:
 
 
 def parse_arguments() -> argparse.Namespace:
+    """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
         epilog=f"Allowed digest algorithms: {hashlib.algorithms_guaranteed}"
     )
@@ -277,11 +287,13 @@ def parse_arguments() -> argparse.Namespace:
 def get_possible_duplicates_by_size(
     items: list[str], args: argparse.Namespace
 ) -> dict[int, list[str]]:
+    """Find candidate duplicate files by grouping by size."""
     file_groups = group_files_by_size(items, args)
     return remove_single_member_groups(file_groups)
 
 
 def main():
+    """Entry point for command-line invocation."""
     start_time = datetime.datetime.now()
 
     args = parse_arguments()
