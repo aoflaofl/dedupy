@@ -30,6 +30,7 @@ def add_file_to_size_map(
     try:
         stat_obj = os.stat(fullname)
     except (PermissionError, FileNotFoundError):
+        logging.warning("Error accessing file %s", fullname)
         return
     file_id = (stat_obj.st_dev, stat_obj.st_ino)
     if file_count[file_id] == 0:
@@ -71,6 +72,40 @@ def group_files_by_size(
     return size_filename_dict
 
 
+# ...existing code...
+
+def compute_file_hash(
+    filename: str,
+    hash_func_name: str,
+    read_size: int = 0,
+    chunked: bool = False,
+) -> str | None:
+    """
+    Compute the hash of a file.
+
+    Args:
+        filename (str): Path to the file.
+        hash_func_name (str): Name of the hash function to use.
+        read_size (int, optional): Number of bytes to read (for quick hash). If None, read full file.
+        chunked (bool, optional): If True, read the file in chunks of size `read_size` until EOF.
+
+    Returns:
+        str | None: The hex digest of the hash, or None if file can't be read.
+    """
+    try:
+        hash_obj = hashlib.new(hash_func_name)
+        with open(filename, "rb") as f:
+            if chunked:
+                while chunk := f.read(read_size):
+                    hash_obj.update(chunk)
+            else:
+                chunk = f.read(read_size) if read_size != 0 else f.read()
+                hash_obj.update(chunk)
+        return hash_obj.hexdigest()
+    except (PermissionError, FileNotFoundError) as e:
+        logging.warning("Error processing file %s: %s", filename, e)
+        return None
+
 def quick_hash_list_of_files(
     list_of_filenames: list[str],
     hash_func_name: str,
@@ -85,17 +120,10 @@ def quick_hash_list_of_files(
     )
     quick_hash_map: dict[str, list[str]] = {}
     for filename in list_of_filenames:
-        try:
-            hash_obj = hashlib.new(hash_func_name)
-            with open(filename, "rb") as f:
-                chunk = f.read(sample_size)
-                hash_obj.update(chunk)
-            quick_digest = hash_obj.hexdigest()
+        quick_digest = compute_file_hash(filename, hash_func_name, sample_size, chunked=False)
+        if quick_digest is not None:
             quick_hash_map.setdefault(quick_digest, []).append(filename)
-        except (PermissionError, FileNotFoundError) as e:
-            logging.warning("Error processing file %s: %s", filename, e)
     return quick_hash_map
-
 
 def finalize_full_hashes(
     quick_hash_map: dict[str, list[str]],
@@ -112,19 +140,17 @@ def finalize_full_hashes(
     for similar_files in quick_hash_map.values():
         if len(similar_files) > 1:
             for filename in similar_files:
-                try:
-                    hash_obj = hashlib.new(hash_func_name)
-                    with open(filename, "rb") as f:
-                        while chunk := f.read(
-                            chunk_size_multiplier * hash_obj.block_size
-                        ):
-                            hash_obj.update(chunk)
-                    digest = hash_obj.hexdigest()
+                digest = compute_file_hash(
+                    filename,
+                    hash_func_name,
+                    chunk_size_multiplier * hashlib.new(hash_func_name).block_size,
+                    chunked=True,
+                )
+                if digest is not None:
                     map_hash_to_file_list.setdefault(digest, []).append(filename)
-                except (PermissionError, FileNotFoundError) as e:
-                    logging.warning("Error processing file %s: %s", filename, e)
     return map_hash_to_file_list
 
+#
 
 def hash_list_of_files(
     file_size: int,
