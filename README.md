@@ -9,3 +9,9 @@ Install dev dependencies and run pytest:
 pip install -r requirements-dev.txt
 pytest
 ```
+
+To see coverage:
+
+```bash
+pytest --cov=dedupy --cov-report=term-missing
+```
