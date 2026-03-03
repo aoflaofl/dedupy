@@ -136,6 +136,7 @@ def finalize_full_hashes(
         hash_func_name,
         chunk_size_multiplier,
     )
+    chunk_size = chunk_size_multiplier * hashlib.new(hash_func_name).block_size
     map_hash_to_file_list: dict[str, list[str]] = {}
     for similar_files in quick_hash_map.values():
         if len(similar_files) > 1:
@@ -143,7 +144,7 @@ def finalize_full_hashes(
                 digest = compute_file_hash(
                     filename,
                     hash_func_name,
-                    chunk_size_multiplier * hashlib.new(hash_func_name).block_size,
+                    chunk_size,
                     chunked=True,
                 )
                 if digest is not None:
@@ -190,7 +191,8 @@ def hash_file_list(
     """Hash a list of files of equal size using a specific algorithm."""
     logging.debug("Num files to hash: %d", len(list_of_files))
 
-    start_time = datetime.datetime.now()
+    if args.debug:
+        start_time = datetime.datetime.now()
     out = hash_list_of_files(
         file_size,
         list_of_files,
@@ -198,10 +200,8 @@ def hash_file_list(
         args.chunk_size_multiplier,
         args.sample_size,
     )
-
     if args.debug:
-        elapsed_time = datetime.datetime.now() - start_time
-        logging.debug("Hashing time: %s", elapsed_time)
+        logging.debug("Hashing time: %s", datetime.datetime.now() - start_time)
 
     return remove_single_member_groups(out)
 
