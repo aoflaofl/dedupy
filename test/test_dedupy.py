@@ -1,14 +1,24 @@
 import argparse
 import hashlib
+import json
+from collections import Counter
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 from dedupy import (
     DEFAULT_SAMPLE_SIZE,
+    add_file_to_size_map,
     compute_file_hash,
     generate_hash_dict_from_list,
     get_possible_duplicates_by_size,
+    hash_file_list,
+    list_of_digest_algorithms,
+    main,
+    parse_arguments,
+    print_file_clusters,
+    save_dict_to_json,
 )
 
 
@@ -87,3 +97,158 @@ def test_chunked_hash_matches_full_hash(tmp_path: Path):
     full = compute_file_hash(str(file_path), "sha1")
     chunked = compute_file_hash(str(file_path), "sha1", read_size=64, chunked=True)
     assert full == chunked
+
+
+# --- compute_file_hash error path ---
+
+def test_compute_file_hash_missing_file():
+    result = compute_file_hash("/nonexistent/path/file.txt", "sha1")
+    assert result is None
+
+
+# --- add_file_to_size_map error paths ---
+
+def test_add_file_to_size_map_nonexistent_file():
+    file_count: Counter = Counter()
+    size_map: dict = {}
+    args = make_args()
+    add_file_to_size_map("/nonexistent/file.txt", file_count, size_map, args)
+    assert size_map == {}
+
+
+def test_add_file_to_size_map_permission_error(tmp_path: Path):
+    file_count: Counter = Counter()
+    size_map: dict = {}
+    args = make_args()
+    with patch("dedupy.os.stat", side_effect=PermissionError):
+        add_file_to_size_map(str(tmp_path / "file.txt"), file_count, size_map, args)
+    assert size_map == {}
+
+
+# --- plain-file input to group_files_by_size ---
+
+def test_group_files_by_size_with_plain_files(tmp_path: Path):
+    file_a = write_file(tmp_path / "a.txt", b"same content")
+    file_b = write_file(tmp_path / "b.txt", b"same content")
+    args = make_args()
+    size_groups = get_possible_duplicates_by_size([str(file_a), str(file_b)], args)
+    assert len(size_groups) == 1
+    file_size, files = next(iter(size_groups.items()))
+    assert set(files) == {str(file_a), str(file_b)}
+
+
+# --- hash_file_list debug timing branch ---
+
+def test_hash_file_list_with_debug(tmp_path: Path):
+    file_a = write_file(tmp_path / "a.txt", b"dup")
+    file_b = write_file(tmp_path / "b.txt", b"dup")
+    args = make_args(debug=True)
+    result = hash_file_list(3, [str(file_a), str(file_b)], "sha1", args)
+    assert len(result) == 1
+    assert set(next(iter(result.values()))) == {str(file_a), str(file_b)}
+
+
+# --- print_file_clusters ---
+
+def test_print_file_clusters_prints_duplicates(tmp_path: Path, capsys):
+    file_a = write_file(tmp_path / "a.txt", b"same content")
+    file_b = write_file(tmp_path / "b.txt", b"same content")
+    write_file(tmp_path / "unique.txt", b"unique")
+    args = make_args()
+    size_groups = get_possible_duplicates_by_size([str(tmp_path)], args)
+    print_file_clusters(size_groups, ["sha1"], args)
+    out = capsys.readouterr().out
+    assert "2 files in cluster 1" in out
+    assert str(file_a) in out
+    assert str(file_b) in out
+
+
+def test_print_file_clusters_saves_json(tmp_path: Path, capsys):
+    file_a = write_file(tmp_path / "a.txt", b"same content")
+    file_b = write_file(tmp_path / "b.txt", b"same content")
+    save_path = str(tmp_path / "output.json")
+    args = make_args(save=save_path)
+    size_groups = get_possible_duplicates_by_size([str(tmp_path)], args)
+    print_file_clusters(size_groups, ["sha1"], args)
+    out = capsys.readouterr().out
+    assert f"Saved output to {save_path}" in out
+    data = json.loads(Path(save_path).read_text())
+    assert len(data) == 1
+    assert set(next(iter(data.values()))) == {str(file_a), str(file_b)}
+
+
+# --- generate_hash_dict_from_list with multiple algorithms ---
+
+def test_generate_hash_dict_multiple_algorithms(tmp_path: Path):
+    file_a = write_file(tmp_path / "a.txt", b"same content")
+    file_b = write_file(tmp_path / "b.txt", b"same content")
+    args = make_args()
+    result = generate_hash_dict_from_list(
+        len(b"same content"), [str(file_a), str(file_b)], ["sha1", "sha256"], args
+    )
+    assert len(result) == 1
+    assert set(next(iter(result.values()))) == {str(file_a), str(file_b)}
+
+
+# --- save_dict_to_json ---
+
+def test_save_dict_to_json(tmp_path: Path):
+    save_path = tmp_path / "out.json"
+    data = {"abc123": ["file1.txt", "file2.txt"]}
+    save_dict_to_json(data, str(save_path))
+    assert json.loads(save_path.read_text()) == data
+
+
+# --- list_of_digest_algorithms ---
+
+def test_list_of_digest_algorithms_valid():
+    assert list_of_digest_algorithms("sha1,sha256") == ["sha1", "sha256"]
+
+
+def test_list_of_digest_algorithms_invalid():
+    with pytest.raises(ValueError, match="Invalid hash function"):
+        list_of_digest_algorithms("sha1,notarealalgorithm")
+
+
+# --- parse_arguments ---
+
+def test_parse_arguments_defaults(monkeypatch):
+    monkeypatch.setattr("sys.argv", ["dedupy.py", "/some/path"])
+    args = parse_arguments()
+    assert args.items == ["/some/path"]
+    assert args.digest_algorithms == ["sha1"]
+    assert args.ignore_zero_length is False
+    assert args.include_hidden_files is False
+    assert args.debug is False
+    assert args.save is None
+    assert args.chunk_size_multiplier == 128
+    assert args.sample_size == DEFAULT_SAMPLE_SIZE
+
+
+def test_parse_arguments_flags(monkeypatch):
+    monkeypatch.setattr("sys.argv", ["dedupy.py", "-z", "-a", "--debug", "/p"])
+    args = parse_arguments()
+    assert args.ignore_zero_length is True
+    assert args.include_hidden_files is True
+    assert args.debug is True
+
+
+def test_parse_arguments_digest_and_save(monkeypatch, tmp_path: Path):
+    save_path = str(tmp_path / "out.json")
+    monkeypatch.setattr(
+        "sys.argv", ["dedupy.py", "-d", "sha256", "-s", save_path, "/p"]
+    )
+    args = parse_arguments()
+    assert args.digest_algorithms == ["sha256"]
+    assert args.save == save_path
+
+
+# --- main ---
+
+def test_main(tmp_path: Path, monkeypatch, capsys):
+    write_file(tmp_path / "a.txt", b"dup content")
+    write_file(tmp_path / "b.txt", b"dup content")
+    monkeypatch.setattr("sys.argv", ["dedupy.py", str(tmp_path)])
+    main()
+    out = capsys.readouterr().out
+    assert "2 files in cluster 1" in out
