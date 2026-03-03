@@ -356,5 +356,5 @@ def main() -> None:
     logging.debug("Total running time: %s", elapsed_time)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

@@ -243,6 +243,29 @@ def test_parse_arguments_digest_and_save(monkeypatch, tmp_path: Path):
     assert args.save == save_path
 
 
+# --- finalize_full_hashes / hash_list_of_files large-file path ---
+
+def test_full_hash_path_when_file_size_exceeds_sample(tmp_path: Path):
+    # sample_size=4 forces the file_size >= sample_size branch for any content > 4 bytes
+    content = b"duplicate content"
+    file_a = write_file(tmp_path / "a.txt", content)
+    file_b = write_file(tmp_path / "b.txt", content)
+    args = make_args(sample_size=4)
+    result = hash_file_list(len(content), [str(file_a), str(file_b)], "sha1", args)
+    assert len(result) == 1
+    assert set(next(iter(result.values()))) == {str(file_a), str(file_b)}
+
+
+def test_full_hash_path_distinguishes_different_files(tmp_path: Path):
+    # Files whose first 4 bytes are identical but full content differs
+    file_a = write_file(tmp_path / "a.txt", b"sameXXXXXX")
+    file_b = write_file(tmp_path / "b.txt", b"sameYYYYYY")
+    args = make_args(sample_size=4)
+    result = hash_file_list(10, [str(file_a), str(file_b)], "sha1", args)
+    # Full hashes differ → no duplicate groups
+    assert result == {}
+
+
 # --- main ---
 
 def test_main(tmp_path: Path, monkeypatch, capsys):
